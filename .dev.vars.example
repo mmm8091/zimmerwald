@@ -1,0 +1,44 @@
+# 本地开发环境变量示例
+# 复制此文件为 .dev.vars 并填入实际值
+# .dev.vars 文件已被 .gitignore 忽略，不会提交到版本控制
+
+# ============================================
+# 通用必填字段（Worker 运行时读取）
+# ============================================
+# AI_API_TYPE 支持：
+# - openai（OpenAI 兼容格式：OpenRouter、DeepSeek、Grok 等）
+# - anthropic（Claude 原生格式）
+AI_API_KEY=your-api-key-here
+AI_API_BASE=https://api.deepseek.com
+AI_API_TYPE=openai
+AI_MODEL_NAME=deepseek-reasoner
+
+# ============================================
+# 预设 1：DeepSeek（当前默认）
+# ============================================
+# 官方文档：https://platform.deepseek.com/
+# max_tokens / temperature 等推理参数在 src/config/llm.ts 中设置
+# 如需启用 DeepSeek，只需要保证上面的通用字段如下：
+# AI_API_KEY=your-deepseek-api-key
+# AI_API_BASE=https://api.deepseek.com
+# AI_API_TYPE=openai
+# AI_MODEL_NAME=deepseek-reasoner
+
+# ============================================
+# 预设 2：OpenRouter（多模型切换）
+# ============================================
+# 文档：https://openrouter.ai/docs/quickstart
+# AI_API_KEY=your-openrouter-api-key
+# AI_API_BASE=https://openrouter.ai/api/v1
+# AI_API_TYPE=openai
+# AI_MODEL_NAME=openai/gpt-4o
+# 常用模型（示例）：openai/gpt-4o、openai/gpt-4-turbo、x-ai/grok-4、meta-llama/llama-3.1-70b-instruct
+
+# ============================================
+# 预设 3：Anthropic Claude（原生接口）
+# ============================================
+# AI_API_KEY=your-anthropic-api-key
+# AI_API_BASE=https://api.anthropic.com
+# AI_API_TYPE=anthropic
+# AI_MODEL_NAME=claude-3-5-sonnet-20241022
+# 当 AI_API_TYPE=anthropic 时，Worker 会自动启用 Messages API 请求体

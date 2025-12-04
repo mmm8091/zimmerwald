@@ -1,0 +1,47 @@
+# Zimmerwald (齐默尔瓦尔德) v1.0
+# Cloudflare Workers 配置文件
+
+name = "zimmerwald"
+main = "worker.ts"
+compatibility_date = "2024-01-01"
+
+# 配置解析
+[build]
+command = ""
+
+# D1 数据库配置
+# 使用命令创建数据库: wrangler d1 create zimmerwald-db
+[[d1_databases]]
+binding = "DB"
+database_name = "zimmerwald-db"
+database_id = "ab708ac9-0d6b-41ee-9e3c-bee7bd9e96a7"
+
+# 定时触发器配置（每小时执行一次）
+[triggers]
+crons = ["0 * * * *"]  # 每小时的第 0 分钟执行
+
+# Observability 配置（日志）
+[observability]
+[observability.logs]
+enabled = true
+head_sampling_rate = 1.0  # 100% 采样率
+invocation_logs = true
+
+# 环境变量（需要在 Cloudflare Dashboard 或使用 wrangler secret 设置）
+# 使用以下命令设置 secrets:
+# wrangler secret put AI_API_KEY
+# wrangler secret put AI_API_BASE
+# wrangler secret put AI_MODEL_NAME
+# wrangler secret put AI_API_TYPE (可选，默认为 'openai')
+
+# 示例配置（实际值需要在 Cloudflare Dashboard 中设置）:
+# AI_API_KEY = "your-api-key-here"
+# AI_API_BASE = "https://api.x.ai/v1"  # Grok 示例
+# AI_MODEL_NAME = "grok-beta"
+# AI_API_TYPE = "openai"  # 或 "anthropic" 用于 Claude
+
+# 或者使用 Anthropic Claude:
+# AI_API_BASE = "https://api.anthropic.com/v1"
+# AI_MODEL_NAME = "claude-3-5-sonnet-20241022"
+# AI_API_TYPE = "anthropic"
+

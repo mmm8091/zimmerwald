@@ -1,0 +1,29 @@
+{
+  "name": "zimmerwald",
+  "version": "1.0.0",
+  "description": "国际共运新闻聚合平台",
+  "main": "worker.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:create": "wrangler d1 create zimmerwald-db",
+    "db:migrate": "wrangler d1 execute zimmerwald-db --file=./schema.sql",
+    "db:local": "wrangler d1 execute zimmerwald-db --local --file=./schema.sql"
+  },
+  "keywords": [
+    "cloudflare-workers",
+    "news-aggregator",
+    "llm"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "fast-xml-parser": "^4.3.5"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240117.0",
+    "typescript": "^5.3.3",
+    "wrangler": "^3.19.0"
+  }
+}
+

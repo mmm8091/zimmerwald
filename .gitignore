@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+yarn.lock
+pnpm-lock.yaml
+# 注意：package-lock.json 应该提交到仓库，用于锁定依赖版本
+
+# Build outputs
+dist/
+.wrangler/
+.dev.vars
+
+# Environment files
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
