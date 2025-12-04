@@ -45,18 +45,33 @@ npm run db:local
 npm run dev
 ```
 
-## 📁 项目结构
+## 📁 项目结构 (v1.1)
 
 ```
 zimmerwald/
 ├── src/
-│   └── config/          # 配置文件
-│       ├── rss-sources.ts    # RSS 源配置
-│       ├── scheduler.ts      # 调度器配置
-│       ├── llm.ts            # LLM API 配置
-│       └── app.ts            # 应用通用配置
-├── worker.ts            # Worker 主入口（包含所有业务逻辑）
-├── schema.sql           # 数据库 Schema
+│   ├── config/          # 配置文件
+│   │   ├── rss-sources.ts    # RSS 源配置
+│   │   ├── scheduler.ts      # 调度器配置
+│   │   ├── llm.ts            # LLM API 配置
+│   │   └── app.ts            # 应用通用配置
+│   ├── core/            # 核心业务逻辑
+│   │   ├── types.ts          # 类型定义
+│   │   ├── db.ts             # D1 数据库操作
+│   │   ├── rss.ts            # RSS 抓取与解析
+│   │   ├── llm.ts            # LLM API 调用
+│   │   ├── news.ts           # 新闻查询与映射
+│   │   ├── sources.ts        # source_id ↔ source_name
+│   │   └── utils.ts          # 工具函数
+│   ├── api/              # API Handler
+│   │   ├── news.ts           # GET /api/news
+│   │   ├── feedback.ts       # POST /api/feedback
+│   │   └── test.ts           # 测试端点
+│   ├── frontend/         # 前端相关
+│   │   └── html.ts           # HTML 页面生成
+│   └── scheduler.ts      # 定时任务调度器
+├── worker.ts            # Worker 主入口（路由分发，仅 67 行）
+├── schema_v1_1.sql      # v1.1 数据库 Schema
 ├── wrangler.toml        # Cloudflare Workers 配置
 ├── package.json
 └── tsconfig.json
@@ -64,9 +79,13 @@ zimmerwald/
 
 ### 关键文件说明
 
-- **worker.ts**: 包含所有业务逻辑（RSS 抓取、LLM 调用、数据库操作、API 路由等）
-- **src/config/**: 所有可配置参数，避免硬编码
-- **schema.sql**: 数据库表结构定义
+- **worker.ts**: 瘦路由层（67 行），只负责路径分发和 Worker 生命周期管理
+- **src/core/**: 纯业务逻辑，不关心 HTTP 层
+- **src/api/**: API Handler，负责参数解析和响应格式化
+- **src/frontend/**: 前端 HTML 生成（包含内联 JavaScript）
+- **src/scheduler.ts**: 定时任务调度器（RSS 抓取和文章分析）
+- **src/config/**: 集中配置管理，避免硬编码
+- **schema_v1_1.sql**: v1.1 数据库表结构定义
 
 ## 📝 代码规范
 
@@ -148,11 +167,28 @@ export const RSS_SOURCES: RSSSource[] = [
 
 ### 添加新的 API 端点
 
-在 `worker.ts` 的 `fetch` 处理函数中添加新的路由：
+1. **创建 Handler 文件**（推荐）：在 `src/api/` 目录下创建新的 handler 文件
 
 ```typescript
-if (url.pathname === '/api/your-endpoint') {
+// src/api/your-endpoint.ts
+import type { Env } from '../core/types';
+
+export async function handleYourEndpoint(request: Request, env: Env, url: URL): Promise<Response> {
   // 你的逻辑
+  return new Response(JSON.stringify({ success: true }), {
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+```
+
+2. **在 worker.ts 中注册路由**：
+
+```typescript
+import { handleYourEndpoint } from './src/api/your-endpoint';
+
+// 在 fetch 函数中
+if (url.pathname === '/api/your-endpoint') {
+  return handleYourEndpoint(request, env, url);
 }
 ```
 

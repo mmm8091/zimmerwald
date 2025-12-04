@@ -7,8 +7,9 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "db:create": "wrangler d1 create zimmerwald-db",
-    "db:migrate": "wrangler d1 execute zimmerwald-db --file=./schema.sql",
-    "db:local": "wrangler d1 execute zimmerwald-db --local --file=./schema.sql"
+    "db:migrate": "wrangler d1 execute zimmerwald-db --file=./schema_v1_1.sql",
+    "db:local": "wrangler d1 execute zimmerwald-db --local --file=./schema_v1_1.sql",
+    "db:migrate:local": "wrangler d1 execute zimmerwald-db --local --file=./schema_v1_1.sql"
   },
   "keywords": [
     "cloudflare-workers",
