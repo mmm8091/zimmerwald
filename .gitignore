@@ -8,6 +8,7 @@ pnpm-lock.yaml
 dist/
 .wrangler/
 .dev.vars
+drizzle/
 
 # Environment files
 .env

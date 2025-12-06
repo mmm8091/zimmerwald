@@ -1,15 +1,14 @@
 {
   "name": "zimmerwald",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "国际共运新闻聚合平台",
   "main": "worker.ts",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "db:create": "wrangler d1 create zimmerwald-db",
-    "db:migrate": "wrangler d1 execute zimmerwald-db --file=./schema_v1_1.sql",
-    "db:local": "wrangler d1 execute zimmerwald-db --local --file=./schema_v1_1.sql",
-    "db:migrate:local": "wrangler d1 execute zimmerwald-db --local --file=./schema_v1_1.sql"
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit push"
   },
   "keywords": [
     "cloudflare-workers",
@@ -19,10 +18,14 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "fast-xml-parser": "^4.3.5"
+    "fast-xml-parser": "^4.3.5",
+    "hono": "^4.0.0",
+    "drizzle-orm": "^0.29.0",
+    "openai": "^4.20.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240117.0",
+    "drizzle-kit": "^0.20.0",
     "typescript": "^5.3.3",
     "wrangler": "^3.19.0"
   }

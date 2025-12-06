@@ -45,33 +45,32 @@ npm run db:local
 npm run dev
 ```
 
-## 📁 项目结构 (v1.1)
+## 📁 项目结构 (v1.2)
 
 ```
 zimmerwald/
 ├── src/
 │   ├── config/          # 配置文件
-│   │   ├── rss-sources.ts    # RSS 源配置
-│   │   ├── scheduler.ts      # 调度器配置
-│   │   ├── llm.ts            # LLM API 配置
-│   │   └── app.ts            # 应用通用配置
-│   ├── core/            # 核心业务逻辑
-│   │   ├── types.ts          # 类型定义
-│   │   ├── db.ts             # D1 数据库操作
-│   │   ├── rss.ts            # RSS 抓取与解析
-│   │   ├── llm.ts            # LLM API 调用
-│   │   ├── news.ts           # 新闻查询与映射
-│   │   ├── sources.ts        # source_id ↔ source_name
-│   │   └── utils.ts          # 工具函数
-│   ├── api/              # API Handler
-│   │   ├── news.ts           # GET /api/news
-│   │   ├── feedback.ts       # POST /api/feedback
-│   │   └── test.ts           # 测试端点
-│   ├── frontend/         # 前端相关
-│   │   └── html.ts           # HTML 页面生成
-│   └── scheduler.ts      # 定时任务调度器
-├── worker.ts            # Worker 主入口（路由分发，仅 67 行）
-├── schema_v1_1.sql      # v1.1 数据库 Schema
+│   │   ├── app.ts       # 应用配置
+│   │   ├── prompts.ts   # System Prompt 配置
+│   │   ├── rss-sources.ts  # RSS 源列表
+│   │   └── scheduler.ts # 调度器配置
+│   ├── core/            # 核心工具
+│   │   └── sources.ts   # 源标识工具
+│   ├── db/              # 数据库定义
+│   │   └── schema.ts   # Drizzle Schema（Single Source of Truth）
+│   ├── frontend/        # 前端
+│   │   └── html.ts      # Vue 3 单页应用
+│   └── services/        # 服务层
+│       ├── ai.ts        # AI 服务（OpenAI SDK）
+│       ├── db.ts        # 数据库服务（Drizzle ORM）
+│       ├── rss.ts       # RSS 服务
+│       └── types.ts     # 类型定义
+├── docs/
+│   └── Zimmerwald v1.2 架构设计规范.md  # 架构设计文档
+├── worker.ts            # Worker 主入口（Hono App）
+├── drizzle.config.ts    # Drizzle Kit 配置
+├── migration_v1_2.sql   # 数据库迁移 SQL
 ├── wrangler.toml        # Cloudflare Workers 配置
 ├── package.json
 └── tsconfig.json
@@ -79,13 +78,12 @@ zimmerwald/
 
 ### 关键文件说明
 
-- **worker.ts**: 瘦路由层（67 行），只负责路径分发和 Worker 生命周期管理
-- **src/core/**: 纯业务逻辑，不关心 HTTP 层
-- **src/api/**: API Handler，负责参数解析和响应格式化
-- **src/frontend/**: 前端 HTML 生成（包含内联 JavaScript）
-- **src/scheduler.ts**: 定时任务调度器（RSS 抓取和文章分析）
-- **src/config/**: 集中配置管理，避免硬编码
-- **schema_v1_1.sql**: v1.1 数据库表结构定义
+- **worker.ts**: Hono App 入口，处理路由和 Cron 调度
+- **src/services/**: 服务层，封装所有业务逻辑（AI、数据库、RSS）
+- **src/db/schema.ts**: 数据库 Schema 定义（Single Source of Truth，使用 Drizzle ORM）
+- **src/frontend/html.ts**: Vue 3 前端单页应用（Options API）
+- **src/config/**: 集中配置管理（Prompt、RSS 源、调度器等）
+- **migration_v1_2.sql**: v1.2 数据库迁移 SQL 文件
 
 ## 📝 代码规范
 
@@ -163,33 +161,35 @@ export const RSS_SOURCES: RSSSource[] = [
 
 ### 调整 LLM 配置
 
-编辑 `src/config/llm.ts` 来修改 prompt、温度参数等。
+编辑 `src/config/prompts.ts` 来修改 System Prompt 和 LLM 配置。
 
 ### 添加新的 API 端点
 
-1. **创建 Handler 文件**（推荐）：在 `src/api/` 目录下创建新的 handler 文件
+在 v1.2 中，使用 Hono 框架直接在 `worker.ts` 中定义路由：
 
 ```typescript
-// src/api/your-endpoint.ts
-import type { Env } from '../core/types';
+// worker.ts
+import { Hono } from 'hono';
 
-export async function handleYourEndpoint(request: Request, env: Env, url: URL): Promise<Response> {
-  // 你的逻辑
-  return new Response(JSON.stringify({ success: true }), {
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
+const app = new Hono<{ Bindings: Env }>();
+
+// 添加新路由
+app.get('/api/your-endpoint', async (c) => {
+  // 访问环境变量: c.env.DB, c.env.AI_API_KEY 等
+  // 访问查询参数: c.req.query('param')
+  // 返回 JSON: c.json({ success: true })
+  // 返回错误: c.json({ error: 'message' }, 400)
+  
+  return c.json({ success: true });
+});
+
+export default {
+  fetch: app.fetch,
+  // ...
+};
 ```
 
-2. **在 worker.ts 中注册路由**：
-
-```typescript
-import { handleYourEndpoint } from './src/api/your-endpoint';
-
-// 在 fetch 函数中
-if (url.pathname === '/api/your-endpoint') {
-  return handleYourEndpoint(request, env, url);
-}
+如果需要复杂的业务逻辑，可以在 `src/services/` 目录下创建服务函数，然后在路由中调用。
 ```
 
 ## 🐛 报告 Bug
