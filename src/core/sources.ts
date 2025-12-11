@@ -1,7 +1,7 @@
 // Zimmerwald v1.1 源标识工具函数
 // 在内部统一处理 source_id <-> 显示名称 的映射逻辑
 
-import { RSS_SOURCES } from '../config/rss-sources';
+import { SOURCE_NAME_MAP } from '../config/rss-sources';
 
 /**
  * 根据 RSS 源名称生成 source_id（小写 + 下划线）
@@ -19,8 +19,7 @@ export function getSourceIdFromName(name: string): string {
  * 根据 source_id 查找展示用名称
  */
 export function getSourceNameFromId(sourceId: string): string {
-  const found = RSS_SOURCES.find((src) => getSourceIdFromName(src.name) === sourceId);
-  return found ? found.name : sourceId;
+  return SOURCE_NAME_MAP[sourceId] || sourceId;
 }
 
 

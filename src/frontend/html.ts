@@ -1,6 +1,7 @@
 /**
- * Zimmerwald v1.2 前端 HTML 页面
+ * Zimmerwald v1.3 前端 HTML 页面
  * 使用 Vue 3 (CDN) Options API
+ * 支持平台筛选（News/Twitter/Telegram），已移除群众审计投票
  */
 
 import { APP_CONFIG } from '../config/app';
@@ -25,9 +26,10 @@ export function generateHTML(): string {
         return {
           lang: 'zh',
           filter: {
-            minScore: 0, // 默认显示所有文章，用户可自行调整
+            minScore: 0, // 默认显示所有文章
             category: '',
             tag: '',
+            platform: 'All', // 平台筛选 (All/News/Twitter/Telegram)
             limit: ${APP_CONFIG.newsListLimit},
           },
           articles: [],
@@ -35,7 +37,7 @@ export function generateHTML(): string {
         };
       },
       computed: {
-        // 计算直方图数据 (0-100分分布)
+        // 计算直方图数据 (0-100 分分布)
         histogram() {
           const bins = new Array(11).fill(0);
           this.articles.forEach((article) => {
@@ -76,13 +78,35 @@ export function generateHTML(): string {
         activeFilters() {
           const parts = [];
           parts.push('最低评分 ≥ ' + this.filter.minScore);
+          if (this.filter.platform && this.filter.platform !== 'All') {
+            parts.push('平台 = ' + this.filter.platform);
+          }
           if (this.filter.category) parts.push('分类 = ' + this.filter.category);
           if (this.filter.tag) parts.push('标签包含 "' + this.filter.tag + '"');
           return parts.length ? parts.join('，') : '无';
         },
       },
       methods: {
-        // 切换语言
+        // 平台显示名称
+        getPlatformLabel(platform) {
+          const labels = {
+            News: this.lang === 'zh' ? '新闻' : 'News',
+            Twitter: 'Twitter',
+            Telegram: 'Telegram',
+            All: this.lang === 'zh' ? '全部' : 'All',
+          };
+          return labels[platform] || platform;
+        },
+        // 平台样式类
+        getPlatformClass(platform) {
+          const classes = {
+            News: 'bg-blue-100 text-blue-700 border-blue-300',
+            Twitter: 'bg-sky-100 text-sky-700 border-sky-300',
+            Telegram: 'bg-indigo-100 text-indigo-700 border-indigo-300',
+          };
+          return classes[platform] || 'bg-gray-100 text-gray-700 border-gray-300';
+        },
+        // 语言切换
         toggleLang() {
           this.lang = this.lang === 'zh' ? 'en' : 'zh';
           try {
@@ -91,7 +115,7 @@ export function generateHTML(): string {
             // 忽略 localStorage 错误
           }
         },
-        // 筛选标签
+        // 选择标签
         selectTag(tag) {
           this.filter.tag = tag;
           this.fetchNews();
@@ -101,7 +125,7 @@ export function generateHTML(): string {
           this.filter.tag = '';
           this.fetchNews();
         },
-        // 获取新闻
+        // 拉取新闻
         async fetchNews() {
           this.loading = true;
           try {
@@ -115,6 +139,9 @@ export function generateHTML(): string {
             }
             if (this.filter.tag) {
               params.set('tag', this.filter.tag);
+            }
+            if (this.filter.platform && this.filter.platform !== 'All') {
+              params.set('platform', this.filter.platform);
             }
 
             const resp = await fetch('/api/news?' + params.toString());
@@ -131,46 +158,35 @@ export function generateHTML(): string {
             this.loading = false;
           }
         },
-        // 提交投票
-        async submitVote(articleId, voteType) {
-          try {
-            const resp = await fetch('/api/feedback', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                article_id: articleId,
-                vote_type: voteType,
-              }),
-            });
-            const data = await resp.json();
-            if (data && data.success) {
-              // 简单的视觉反馈
-              const btn = event?.target;
-              if (btn) {
-                btn.classList.add('text-green-600');
-                setTimeout(() => {
-                  btn.classList.remove('text-green-600');
-                }, 1000);
-              }
-            }
-          } catch (error) {
-            console.error('提交反馈失败:', error);
-          }
-        },
         // 格式化日期
         formatDate(timestamp) {
           if (!timestamp) return '';
           return new Date(timestamp).toLocaleDateString('zh-CN');
         },
-        // 获取评分样式类
+        // 相对时间（Twitter/Telegram）
+        formatRelativeTime(timestamp) {
+          if (!timestamp) return '';
+          const now = Date.now();
+          const diff = now - timestamp;
+          const minutes = Math.floor(diff / 60000);
+          const hours = Math.floor(diff / 3600000);
+          const days = Math.floor(diff / 86400000);
+
+          if (minutes < 1) return this.lang === 'zh' ? '刚刚' : 'Just now';
+          if (minutes < 60) return minutes + (this.lang === 'zh' ? '分钟前' : 'm ago');
+          if (hours < 24) return hours + (this.lang === 'zh' ? '小时前' : 'h ago');
+          if (days < 7) return days + (this.lang === 'zh' ? '天前' : 'd ago');
+          return this.formatDate(timestamp);
+        },
+        // 评分样式
         getScoreClass(score) {
-          if (!score) return 'text-gray-500';
+          if (!score && score !== 0) return 'text-gray-500';
           if (score >= 80) return 'text-red-600 font-bold';
           if (score >= 60) return 'text-orange-500';
           if (score >= 40) return 'text-yellow-500';
           return 'text-gray-400';
         },
-        // 获取分类样式类
+        // 分类样式
         getCategoryClass(category) {
           const classes = {
             Labor: 'bg-blue-100 text-blue-800',
@@ -196,11 +212,13 @@ export function generateHTML(): string {
         this.fetchNews();
       },
       watch: {
-        // 监听筛选条件变化，自动重新获取
         'filter.minScore'() {
           this.fetchNews();
         },
         'filter.category'() {
+          this.fetchNews();
+        },
+        'filter.platform'() {
           this.fetchNews();
         },
       },
@@ -257,6 +275,22 @@ export function generateHTML(): string {
           />
           <span class="text-gray-800 text-xs font-mono">≥ {{ filter.minScore }}</span>
         </div>
+        <!-- 平台筛选 -->
+        <div class="flex items-center gap-2">
+          <span class="text-gray-600 text-xs">
+            <span v-if="lang === 'zh'">平台</span>
+            <span v-else>Platform</span>
+          </span>
+          <select
+            v-model="filter.platform"
+            class="border border-gray-300 rounded px-2 py-1 text-xs"
+          >
+            <option value="All">{{ lang === 'zh' ? '全部' : 'All' }}</option>
+            <option value="News">News</option>
+            <option value="Twitter">Twitter</option>
+            <option value="Telegram">Telegram</option>
+          </select>
+        </div>
         <div class="flex items-center gap-2">
           <span class="text-gray-600 text-xs">
             <span v-if="lang === 'zh'">分类</span>
@@ -266,10 +300,7 @@ export function generateHTML(): string {
             v-model="filter.category"
             class="border border-gray-300 rounded px-2 py-1 text-xs"
           >
-            <option value="">
-              <span v-if="lang === 'zh'">全部</span>
-              <span v-else>All</span>
-            </option>
+            <option value="">{{ lang === 'zh' ? '全部' : 'All' }}</option>
             <option value="Labor">Labor</option>
             <option value="Politics">Politics</option>
             <option value="Conflict">Conflict</option>
@@ -361,7 +392,7 @@ export function generateHTML(): string {
         {{ activeFilters }}
       </div>
     </section>
-
+    
     <!-- 新闻列表 -->
     <div class="bg-white rounded-lg shadow-sm p-6">
       <div v-if="loading" class="text-gray-500 text-center py-8">
@@ -376,81 +407,132 @@ export function generateHTML(): string {
         <article
           v-for="article in articles"
           :key="article.id"
-          class="border-b border-gray-200 py-4 last:border-b-0"
+          :class="[
+            'border-b border-gray-200 last:border-b-0',
+            article.platform === 'Twitter' || article.platform === 'Telegram'
+              ? 'py-3'
+              : 'py-4'
+          ]"
         >
-          <div class="flex items-start justify-between mb-2">
-            <div class="flex-1">
-              <h2 class="text-lg font-semibold text-gray-900">
-                <a
-                  :href="article.url"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="hover:text-blue-600 transition-colors"
+          <!-- News 样式 -->
+          <template v-if="article.platform === 'News' || !article.platform">
+            <div class="flex items-start justify-between mb-2">
+              <div class="flex-1">
+                <h2 class="text-lg font-semibold text-gray-900">
+                  <a
+                    :href="article.url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="hover:text-blue-600 transition-colors"
+                  >
+                    <span v-if="lang === 'zh'">
+                      {{ article.title_zh || article.title || '(无标题)' }}
+                    </span>
+                    <span v-else>
+                      {{ article.title_en || article.title || '(No title)' }}
+                    </span>
+                  </a>
+                </h2>
+              </div>
+              <div class="ml-4 flex items-center gap-2 text-sm">
+                <span
+                  v-if="article.category"
+                  :class="['px-2 py-1 text-xs rounded', getCategoryClass(article.category)]"
                 >
-                  <span v-if="lang === 'zh'">
-                    {{ article.title_zh || article.title || '(无标题)' }}
-                  </span>
-                  <span v-else>
-                    {{ article.title_en || article.title || '(No title)' }}
-                  </span>
-                </a>
-              </h2>
-            </div>
-            <div class="ml-4 flex items-center gap-2 text-sm">
-              <span
-                v-if="article.category"
-                :class="['px-2 py-1 text-xs rounded', getCategoryClass(article.category)]"
-              >
-                {{ article.category }}
-              </span>
-              <div v-if="typeof article.score === 'number'" class="flex items-center gap-1">
-                <span :class="['score-value', getScoreClass(article.score)]">
-                  {{ article.score }}
+                  {{ article.category }}
                 </span>
-                <!-- 群众投票按钮 -->
-                <div class="flex flex-col text-xs text-gray-400">
-                  <button
-                    @click="submitVote(article.id, 'too_low')"
-                    class="vote-btn hover:text-green-600 transition-colors"
-                    :title="lang === 'zh' ? '分数偏低' : 'Score too low'"
+                <div v-if="typeof article.score === 'number'" class="flex items-center gap-1">
+                  <span :class="['score-value', getScoreClass(article.score)]">
+                    {{ article.score }}
+                  </span>
+                </div>
+              </div>
+    </div>
+    
+            <div class="text-sm text-gray-600 mb-2">
+              <span class="font-medium">{{ article.source_name || '' }}</span>
+              <span v-if="formatDate(article.published_at)" class="mx-2">•</span>
+              <span v-if="formatDate(article.published_at)">{{ formatDate(article.published_at) }}</span>
+  </div>
+
+            <p v-if="(lang === 'zh' ? article.summary_zh : article.summary_en)" class="text-gray-700 mt-2">
+              <span v-if="lang === 'zh'">{{ article.summary_zh || article.summary || '' }}</span>
+              <span v-else>{{ article.summary_en || article.summary || '' }}</span>
+            </p>
+          </template>
+
+          <!-- Twitter/Telegram 样式 -->
+          <template v-else>
+            <div class="flex items-start gap-3">
+              <div
+                :class="[
+                  'px-2 py-0.5 text-xs font-medium rounded border flex-shrink-0',
+                  getPlatformClass(article.platform)
+                ]"
+              >
+                {{ getPlatformLabel(article.platform) }}
+              </div>
+
+              <div class="flex-1 min-w-0">
+                <p
+                  v-if="(lang === 'zh' ? (article.summary_zh || article.summary) : (article.summary_en || article.summary))"
+                  class="text-gray-800 text-sm leading-relaxed mb-2"
+                >
+                  <a
+                    :href="article.url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="hover:text-blue-600 transition-colors"
                   >
-                    ▲
-                  </button>
-                  <button
-                    @click="submitVote(article.id, 'accurate')"
-                    class="vote-btn hover:text-green-600 transition-colors"
-                    :title="lang === 'zh' ? '分数合理' : 'Score accurate'"
+                    <span v-if="lang === 'zh'">{{ article.summary_zh || article.summary || article.title_zh || article.title || '' }}</span>
+                    <span v-else>{{ article.summary_en || article.summary || article.title_en || article.title || '' }}</span>
+                  </a>
+                </p>
+                <p
+                  v-else-if="(lang === 'zh' ? (article.title_zh || article.title) : (article.title_en || article.title))"
+                  class="text-gray-800 text-sm leading-relaxed mb-2"
+                >
+                  <a
+                    :href="article.url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="hover:text-blue-600 transition-colors"
                   >
-                    OK
-                  </button>
-                  <button
-                    @click="submitVote(article.id, 'too_high')"
-                    class="vote-btn hover:text-green-600 transition-colors"
-                    :title="lang === 'zh' ? '分数偏高' : 'Score too high'"
+                    <span v-if="lang === 'zh'">{{ article.title_zh || article.title || '' }}</span>
+                    <span v-else>{{ article.title_en || article.title || '' }}</span>
+                  </a>
+                </p>
+
+                <div class="flex items-center gap-2 text-xs text-gray-500 flex-wrap">
+                  <span class="font-medium">{{ article.source_name || '' }}</span>
+                  <span v-if="article.published_at">•</span>
+                  <span v-if="article.published_at" :title="formatDate(article.published_at)">
+                    {{ formatRelativeTime(article.published_at) }}
+                  </span>
+                  <span v-if="article.category" class="mx-1">•</span>
+                  <span
+                    v-if="article.category"
+                    :class="['px-1.5 py-0.5 text-xs rounded', getCategoryClass(article.category)]"
                   >
-                    ▼
-                  </button>
+                    {{ article.category }}
+                  </span>
+                  <span v-if="typeof article.score === 'number'" class="mx-1">•</span>
+                  <span
+                    v-if="typeof article.score === 'number'"
+                    :class="['font-medium', getScoreClass(article.score)]"
+                  >
+                    {{ article.score }}
+                  </span>
                 </div>
               </div>
             </div>
-          </div>
-
-          <div class="text-sm text-gray-600 mb-2">
-            <span class="font-medium">{{ article.source_name || '' }}</span>
-            <span v-if="formatDate(article.published_at)" class="mx-2">•</span>
-            <span v-if="formatDate(article.published_at)">{{ formatDate(article.published_at) }}</span>
-          </div>
-
-          <p v-if="(lang === 'zh' ? article.summary_zh : article.summary_en)" class="text-gray-700 mt-2">
-            <span v-if="lang === 'zh'">{{ article.summary_zh || article.summary || '' }}</span>
-            <span v-else>{{ article.summary_en || article.summary || '' }}</span>
-          </p>
+          </template>
         </article>
       </div>
     </div>
 
     <footer class="mt-8 text-center text-sm text-gray-500">
-      <p>Zimmerwald v1.2</p>
+      <p>Zimmerwald v1.3</p>
     </footer>
   </div>
 </body>

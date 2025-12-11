@@ -27,25 +27,19 @@ npm install
 
 3. **设置环境变量**
 
-复制 `.dev.vars.example` 为 `.dev.vars` 并填入你的配置：
+复制 `.dev.vars.example` 为 `.dev.vars` 并填入你的配置（文件已忽略，不会提交）：
 
 ```bash
 cp .dev.vars.example .dev.vars
 ```
 
-4. **创建本地数据库**
-
-```bash
-npm run db:local
-```
-
-5. **启动开发服务器**
+4. **启动开发服务器**
 
 ```bash
 npm run dev
 ```
 
-## 📁 项目结构 (v1.2)
+## 📁 项目结构 (v1.3)
 
 ```
 zimmerwald/
@@ -67,10 +61,11 @@ zimmerwald/
 │       ├── rss.ts       # RSS 服务
 │       └── types.ts     # 类型定义
 ├── docs/
-│   └── Zimmerwald v1.2 架构设计规范.md  # 架构设计文档
+│   ├── Zimmerwald v1.3 架构设计规范.md  # 架构设计文档
+│   └── cloudflare-tunnel-setup.md       # Cloudflare Tunnel 配置指南
 ├── worker.ts            # Worker 主入口（Hono App）
 ├── drizzle.config.ts    # Drizzle Kit 配置
-├── migration_v1_2.sql   # 数据库迁移 SQL
+├── migration_v1_3.sql   # v1.3 数据库迁移 SQL
 ├── wrangler.toml        # Cloudflare Workers 配置
 ├── package.json
 └── tsconfig.json
@@ -82,8 +77,10 @@ zimmerwald/
 - **src/services/**: 服务层，封装所有业务逻辑（AI、数据库、RSS）
 - **src/db/schema.ts**: 数据库 Schema 定义（Single Source of Truth，使用 Drizzle ORM）
 - **src/frontend/html.ts**: Vue 3 前端单页应用（Options API）
-- **src/config/**: 集中配置管理（Prompt、RSS 源、调度器等）
-- **migration_v1_2.sql**: v1.2 数据库迁移 SQL 文件
+- **src/config/**: 集中配置管理（应用配置、Prompt、RSS 源、调度器等）
+  - **app.ts**: 应用通用配置
+  - **rss-sources.ts**: 源模板，运行时通过 `buildRssSources(env.RSSHUB_BASE)` 构建
+- **wrangler.toml**: Worker 配置（不含明文 Vars）
 
 ## 📝 代码规范
 
@@ -146,18 +143,11 @@ git push origin feature/your-feature-name
 
 ### 添加新的 RSS 源
 
-编辑 `src/config/rss-sources.ts`：
-
-```typescript
-export const RSS_SOURCES: RSSSource[] = [
-  // ... 现有源
-  { name: '新源名称', url: 'https://example.com/feed', enabled: true },
-];
-```
+编辑 `src/config/rss-sources.ts` 的 `SOURCE_TEMPLATES`，运行时通过 `buildRssSources(rssHubBase)` 生成完整 URL。`rssHubBase` 必须来自环境变量 `RSSHUB_BASE`（Secrets）。
 
 ### 修改调度器配置
 
-编辑 `src/config/scheduler.ts` 来调整处理限制和延迟时间。
+编辑 `src/config/scheduler.ts` 来调整处理限制和延迟时间（按平台限流）。
 
 ### 调整 LLM 配置
 
@@ -165,7 +155,7 @@ export const RSS_SOURCES: RSSSource[] = [
 
 ### 添加新的 API 端点
 
-在 v1.2 中，使用 Hono 框架直接在 `worker.ts` 中定义路由：
+在 v1.3 中，使用 Hono 框架直接在 `worker.ts` 中定义路由：
 
 ```typescript
 // worker.ts
@@ -185,12 +175,13 @@ app.get('/api/your-endpoint', async (c) => {
 
 export default {
   fetch: app.fetch,
-  // ...
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(handleScheduled(event, env));
+  },
 };
 ```
 
-如果需要复杂的业务逻辑，可以在 `src/services/` 目录下创建服务函数，然后在路由中调用。
-```
+复杂业务逻辑建议放到 `src/services/` 下的模块，再在路由中调用。
 
 ## 🐛 报告 Bug
 

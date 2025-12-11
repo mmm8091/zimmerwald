@@ -12,6 +12,12 @@ AI_API_KEY=your-api-key-here
 AI_API_BASE=https://api.deepseek.com
 AI_API_TYPE=openai
 AI_MODEL_NAME=deepseek-reasoner
+RSSHUB_BASE=https://your-rsshub.example.com  # 必填，无默认值
+
+# 备用模型（可选，用于主模型触发内容风险时兜底）
+FALLBACK_API_KEY=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
+FALLBACK_API_BASE=https://openrouter.ai/api/v1
+FALLBACK_MODEL_NAME=anthropic/claude-sonnet-4.5
 
 # ============================================
 # 预设 1：DeepSeek（当前默认）

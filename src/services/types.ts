@@ -1,4 +1,6 @@
-// Zimmerwald v1.2 服务层类型定义
+// Zimmerwald v1.3 服务层类型定义
+
+export type PlatformType = 'News' | 'Twitter' | 'Telegram';
 
 export interface LLMTag {
   en: string;
@@ -22,5 +24,9 @@ export interface Env {
   AI_API_BASE: string;
   AI_MODEL_NAME: string;
   AI_API_TYPE?: 'openai' | 'anthropic';
+  RSSHUB_BASE?: string;
+  FALLBACK_API_KEY?: string;
+  FALLBACK_API_BASE?: string;
+  FALLBACK_MODEL_NAME?: string;
+  FALLBACK_API_TYPE?: 'openai' | 'anthropic';
 }
-

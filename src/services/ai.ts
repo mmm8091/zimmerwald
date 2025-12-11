@@ -6,6 +6,36 @@ import { SYSTEM_PROMPT_TEMPLATE, LLM_CONFIG } from '../config/prompts';
 import { getTopTags } from './db';
 import type { LLMResponse, Env } from './types';
 
+interface ModelConfig {
+  apiKey: string;
+  baseURL: string;
+  model: string;
+}
+
+function isRiskError(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error);
+  return msg.includes('Content Exists Risk') || msg.includes('400');
+}
+
+async function runModel(config: ModelConfig, systemPrompt: string, userPrompt: string) {
+  const client = new OpenAI({
+    apiKey: config.apiKey,
+    baseURL: config.baseURL,
+  });
+
+  const response = await client.chat.completions.create({
+    model: config.model,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+    temperature: LLM_CONFIG.temperature,
+    max_tokens: LLM_CONFIG.maxTokens,
+  });
+
+  return response.choices[0]?.message?.content;
+}
+
 /**
  * 分析新闻文章
  * Context Loop: 先查询热门标签，注入到 System Prompt
@@ -30,32 +60,41 @@ export async function analyzeNews(
       currentDate
     );
 
-    // 初始化 OpenAI SDK
-    const client = new OpenAI({
-      apiKey: env.AI_API_KEY,
-      baseURL: env.AI_API_BASE,
-    });
-
     const userPrompt = `标题：${title}\n\n内容：${description}`;
 
-    // 调用 OpenAI API
-    const response = await client.chat.completions.create({
+    const primaryConfig: ModelConfig = {
+      apiKey: env.AI_API_KEY,
+      baseURL: env.AI_API_BASE,
       model: env.AI_MODEL_NAME,
-      messages: [
-        {
-          role: 'system',
-          content: systemPrompt,
-        },
-        {
-          role: 'user',
-          content: userPrompt,
-        },
-      ],
-      temperature: LLM_CONFIG.temperature,
-      max_tokens: LLM_CONFIG.maxTokens,
-    });
+    };
 
-    const content = response.choices[0]?.message?.content;
+    const fallbackConfig =
+      env.FALLBACK_API_KEY && (env.FALLBACK_API_BASE || env.FALLBACK_MODEL_NAME)
+        ? {
+            apiKey: env.FALLBACK_API_KEY,
+            baseURL: env.FALLBACK_API_BASE || 'https://openrouter.ai/api/v1',
+            model: env.FALLBACK_MODEL_NAME || 'anthropic/claude-sonnet-4.5',
+          }
+        : null;
+
+    let content: string | undefined;
+
+    try {
+      content = await runModel(primaryConfig, systemPrompt, userPrompt);
+    } catch (err) {
+      console.error('主模型调用失败，将尝试备用模型（若配置）:', err);
+      if (fallbackConfig && isRiskError(err)) {
+        try {
+          content = await runModel(fallbackConfig, systemPrompt, userPrompt);
+        } catch (fallbackErr) {
+          console.error('备用模型调用也失败:', fallbackErr);
+          return null;
+        }
+      } else {
+        return null;
+      }
+    }
+
     if (!content) {
       console.error('LLM 返回空内容');
       return null;

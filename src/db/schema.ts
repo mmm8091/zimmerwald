@@ -25,6 +25,7 @@ export const articles = sqliteTable(
     tags: text('tags'), // JSON String: [{"en":"Strike","zh":"罢工"}]
     score: integer('score'),
     aiReasoning: text('ai_reasoning'),
+    platform: text('platform').notNull().default('News'), // News, Twitter, Telegram
 
     // 时间戳
     publishedAt: integer('published_at').notNull(),
@@ -44,6 +45,10 @@ export const articles = sqliteTable(
       table.category,
       table.publishedAt
     ),
+    // 平台索引：用于平台筛选
+    platformIdx: index('idx_articles_platform').on(table.platform),
+    // 平台+评分复合索引：平台筛选+评分排序优化
+    platformScoreIdx: index('idx_articles_platform_score').on(table.platform, table.score),
   })
 );
 
