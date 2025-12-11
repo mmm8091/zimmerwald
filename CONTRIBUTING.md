@@ -39,7 +39,7 @@ cp .dev.vars.example .dev.vars
 npm run dev
 ```
 
-## 📁 项目结构 (v1.3)
+## 📁 项目结构 (v1.4)
 
 ```
 zimmerwald/
@@ -61,11 +61,15 @@ zimmerwald/
 │       ├── rss.ts       # RSS 服务
 │       └── types.ts     # 类型定义
 ├── docs/
-│   ├── Zimmerwald v1.3 架构设计规范.md  # 架构设计文档
-│   └── cloudflare-tunnel-setup.md       # Cloudflare Tunnel 配置指南
+│   ├── Zimmerwald v1.4 架构设计规范.md  # 架构设计文档（历史唯物主义评分）
+│   ├── Zimmerwald v1.3 架构设计规范.md  # v1.3 架构文档（历史）
+│   ├── Zimmerwald v1.2 架构设计规范.md  # v1.2 架构文档（历史）
+│   └── Zimmerwald v1.1 架构设计规范.md  # v1.1 架构文档（历史）
+├── scripts/
+│   ├── migration_v1_4.sql   # v1.4 数据库迁移 SQL
+│   └── seed_sources.ts       # 源种子数据生成脚本
 ├── worker.ts            # Worker 主入口（Hono App）
 ├── drizzle.config.ts    # Drizzle Kit 配置
-├── migration_v1_3.sql   # v1.3 数据库迁移 SQL
 ├── wrangler.toml        # Cloudflare Workers 配置
 ├── package.json
 └── tsconfig.json
@@ -80,6 +84,8 @@ zimmerwald/
 - **src/config/**: 集中配置管理（应用配置、Prompt、RSS 源、调度器等）
   - **app.ts**: 应用通用配置
   - **rss-sources.ts**: 源模板，运行时通过 `buildRssSources(env.RSSHUB_BASE)` 构建
+  - **scheduler.ts**: 调度器配置（平台限流、并发数 `aiAnalysisConcurrency`、延迟等）
+  - **prompts.ts**: 历史唯物主义五因子评分 Prompt
 - **wrangler.toml**: Worker 配置（不含明文 Vars）
 
 ## 📝 代码规范
@@ -147,7 +153,7 @@ git push origin feature/your-feature-name
 
 ### 修改调度器配置
 
-编辑 `src/config/scheduler.ts` 来调整处理限制和延迟时间（按平台限流）。
+编辑 `src/config/scheduler.ts` 来调整处理限制、延迟时间和 AI 分析并发数（`aiAnalysisConcurrency`，默认 30）。
 
 ### 调整 LLM 配置
 

@@ -12,6 +12,7 @@ export interface SchedulerConfig {
   maxArticlesPerSource: number;
   maxTotalArticles: number;
   delayBetweenArticles: number; // 毫秒
+  aiAnalysisConcurrency: number; // AI 分析并发数
 }
 
 /**
@@ -33,5 +34,6 @@ export const SCHEDULER_CONFIG: SchedulerConfig = {
   maxArticlesPerSource: 30, // 每个源最多处理 30 篇文章
   maxTotalArticles: 450, // 总共最多处理 450 篇文章（15 个源 × 30 篇）
   delayBetweenArticles: 1000, // 每篇文章之间延迟 1 秒，避免 API 限流
+  aiAnalysisConcurrency: 30, // AI 分析并发数（v1.4 优化：并行处理提升效率）
 };
 

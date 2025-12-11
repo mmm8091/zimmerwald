@@ -3,8 +3,8 @@
 
 import { drizzle } from 'drizzle-orm/d1';
 import { and, gte, like, sql, desc, eq, isNotNull } from 'drizzle-orm';
-import { articles, type Article, type NewArticle } from '../db/schema';
-import type { LLMTag } from './types';
+import { articles, sources, type Article, type NewArticle, type Source } from '../db/schema';
+import type { LLMTag, PlatformType } from './types';
 
 /**
  * 初始化 Drizzle 数据库实例
@@ -119,6 +119,139 @@ export async function getNews(
     .limit(options.limit ?? 30);
 
   return await query.all();
+}
+
+/**
+ * 获取 sources 列表（可选过滤）
+ */
+export async function getSources(
+  db: D1Database,
+  options?: { enabledOnly?: boolean; platform?: PlatformType }
+): Promise<Source[]> {
+  const d = getDb(db);
+  const conditions = [];
+
+  if (options?.enabledOnly) {
+    conditions.push(eq(sources.enabled, true));
+  }
+  if (options?.platform) {
+    conditions.push(eq(sources.platform, options.platform));
+  }
+
+  const query = d.select().from(sources).where(conditions.length ? and(...conditions) : undefined);
+  return await query.all();
+}
+
+/**
+ * 获取已启用的 sources
+ */
+export async function getEnabledSources(db: D1Database, platform?: PlatformType): Promise<Source[]> {
+  return getSources(db, { enabledOnly: true, platform });
+}
+
+/**
+ * Source 名称映射表（slug -> name）
+ */
+export async function getSourceNameMap(db: D1Database): Promise<Record<string, string>> {
+  const rows = await getSources(db);
+  return rows.reduce((acc, cur) => {
+    acc[cur.slug] = cur.name;
+    return acc;
+  }, {} as Record<string, string>);
+}
+
+export interface SourceStat {
+  slug: string;
+  name: string;
+  url: string;
+  platform: PlatformType;
+  enabled: boolean;
+  isRssHub: boolean;
+  lastFetchedAt: number | null;
+  lastStatus: string | null;
+  errorCount: number;
+  volume30d: number;
+  avgScore30d: number;
+  strategicValue: number;
+}
+
+/**
+ * 更新 source 抓取状态
+ */
+export async function updateSourceStatus(
+  db: D1Database,
+  slug: string,
+  params: { status: string; ok: boolean }
+): Promise<void> {
+  const now = Date.now();
+  const { status, ok } = params;
+
+  // 直接使用 D1 原生 API，避免 Drizzle timestamp 类型问题
+  if (ok) {
+    await db
+      .prepare('UPDATE sources SET last_fetched_at = ?, last_status = ?, error_count = 0 WHERE slug = ?')
+      .bind(now, status, slug)
+      .run();
+  } else {
+    await db
+      .prepare('UPDATE sources SET last_fetched_at = ?, last_status = ?, error_count = error_count + 1 WHERE slug = ?')
+      .bind(now, status, slug)
+      .run();
+  }
+}
+
+/**
+ * 获取源统计（近 N 天文章量、均分、贡献指数）
+ */
+export async function getSourceStats(db: D1Database, days: number = 30): Promise<SourceStat[]> {
+  const since = Date.now() - days * 24 * 60 * 60 * 1000;
+
+  // 直接使用 D1 原生 API，因为 Drizzle 不支持复杂 JOIN + GROUP BY
+  const stmt = db.prepare(`
+    SELECT 
+      s.slug,
+      s.name,
+      s.url,
+      s.platform,
+      s.enabled,
+      s.is_rsshub as isRssHub,
+      s.last_fetched_at as lastFetchedAt,
+      s.last_status as lastStatus,
+      s.error_count as errorCount,
+      COALESCE(COUNT(a.id), 0) as volume30d,
+      COALESCE(AVG(a.score), 0) as avgScore30d,
+      COALESCE(SUM(a.score), 0) as sumScore30d
+    FROM sources s
+    LEFT JOIN articles a
+      ON a.source_id = s.slug
+     AND a.created_at >= ?
+    GROUP BY s.slug
+    ORDER BY s.enabled DESC, s.platform, s.slug;
+  `);
+
+  const result = await stmt.bind(since).all();
+  const rows = result.results || [];
+
+  // 处理 D1 返回的类型（字符串转数字）
+  return rows.map((r: any) => {
+    const volume30d = Number(r.volume30d || 0);
+    const avgScore30d = Number(r.avgScore30d || 0);
+    const strategicValue = Math.round((avgScore30d / 100) * volume30d * 100) / 100; // 两位小数
+    return {
+      slug: r.slug,
+      name: r.name,
+      url: r.url,
+      platform: r.platform as PlatformType,
+      enabled: Boolean(r.enabled),
+      isRssHub: Boolean(r.isRssHub),
+      lastFetchedAt: r.lastFetchedAt ? Number(r.lastFetchedAt) : null,
+      lastStatus: r.lastStatus ?? null,
+      errorCount: Number(r.errorCount || 0),
+      volume30d,
+      avgScore30d,
+      strategicValue,
+    } as SourceStat;
+  });
 }
 
 

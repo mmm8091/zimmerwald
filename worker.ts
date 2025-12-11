@@ -4,13 +4,21 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { type NewArticle } from './src/db/schema';
-import { getNews, urlExists, saveArticle } from './src/services/db';
+import {
+  getNews,
+  urlExists,
+  saveArticle,
+  getEnabledSources,
+  getSources,
+  getSourceNameMap,
+  updateSourceStatus,
+  getSourceStats,
+} from './src/services/db';
 import { analyzeNews } from './src/services/ai';
 import { fetchRSSFeed, parseDate, sanitizeContent } from './src/services/rss';
-import { getEnabledRssSources, getRssSourcesByPlatform } from './src/config/rss-sources';
 import { SCHEDULER_CONFIG } from './src/config/scheduler';
 import { getSourceIdFromName, getSourceNameFromId } from './src/core/sources';
-import type { Env } from './src/services/types';
+import type { Env, PlatformType } from './src/services/types';
 import { generateHTML } from './src/frontend/html';
 
 // 初始化 Hono App
@@ -47,13 +55,16 @@ app.get('/api/news', async (c) => {
 
     console.log('[/api/news] 查询参数:', { minScore, tag, category, platform, limit });
 
-    const dbArticles = await getNews(c.env.DB, {
+    const [dbArticles, sourceNameMap] = await Promise.all([
+      getNews(c.env.DB, {
       minScore: Number.isNaN(minScore as number) ? undefined : minScore,
       tag,
       category,
       platform,
       limit: Number.isNaN(limit) ? 30 : limit,
-    });
+      }),
+      getSourceNameMap(c.env.DB),
+    ]);
 
     const mapped = dbArticles.map((row) => {
       const title =
@@ -87,7 +98,7 @@ app.get('/api/news', async (c) => {
         id: row.id,
         url: row.url,
         source_id: row.sourceId,
-        source_name: getSourceNameFromId(row.sourceId),
+        source_name: sourceNameMap[row.sourceId] || getSourceNameFromId(row.sourceId),
         title,
         summary,
         category: row.category ?? undefined,
@@ -114,23 +125,77 @@ app.get('/api/news', async (c) => {
 });
 
 /**
+ * GET /api/sources/stats - 返回源列表与健康统计
+ */
+app.get('/api/sources/stats', async (c) => {
+  try {
+    const includeDisabled = c.req.query('include_disabled') === '1';
+    const stats = await getSourceStats(c.env.DB, 30);
+    const list = includeDisabled ? stats : stats.filter((s) => s.enabled);
+
+    const byPlatform = list.reduce(
+      (acc, cur) => {
+        const key = cur.platform as 'News' | 'Twitter' | 'Telegram';
+        acc[key].total += 1;
+        if (cur.enabled) acc[key].enabled += 1;
+        acc[key].volume += cur.volume30d;
+        return acc;
+      },
+      {
+        News: { total: 0, enabled: 0, volume: 0 },
+        Twitter: { total: 0, enabled: 0, volume: 0 },
+        Telegram: { total: 0, enabled: 0, volume: 0 },
+      }
+    );
+
+    const enabled = list.filter((s) => s.enabled).length;
+
+    return c.json({
+      sources: list,
+      stats: {
+        total: list.length,
+        enabled,
+        disabled: list.length - enabled,
+        byPlatform,
+      },
+    });
+  } catch (error) {
+    console.error('[/api/sources/stats] 处理请求时出错:', error);
+    return c.json({ error: error instanceof Error ? error.message : '未知错误', success: false }, 500);
+  }
+});
+
+/**
+ * GET /api/daily-briefings - 预留接口（v1.4 将由 AI 生成）
+ */
+app.get('/api/daily-briefings', async (c) => {
+  return c.json({ items: [], success: true, note: 'daily_briefings will be populated in future version.' });
+});
+
+/**
  * 定时任务调度器：按平台分组抓取 RSS 并分析
  */
 async function handleScheduled(event: ScheduledEvent, env: Env): Promise<void> {
-  let enabledSources;
-  let byPlatform;
-  try {
-    enabledSources = getEnabledRssSources(env.RSSHUB_BASE);
-    byPlatform = getRssSourcesByPlatform(env.RSSHUB_BASE);
-  } catch (e) {
-    console.error('RSSHUB_BASE 未配置或无效，请在 Cloudflare Vars/Secrets 设置', e);
+  const enabledSources = await getEnabledSources(env.DB);
+  if (!enabledSources || enabledSources.length === 0) {
+    console.warn('没有启用的 sources，跳过定时任务');
     return;
   }
 
+  const groupByPlatform = enabledSources.reduce(
+    (acc, cur) => {
+      if (cur.platform === 'News') acc.News.push(cur);
+      else if (cur.platform === 'Twitter') acc.Twitter.push(cur);
+      else if (cur.platform === 'Telegram') acc.Telegram.push(cur);
+      return acc;
+    },
+    { News: [] as typeof enabledSources, Twitter: [] as typeof enabledSources, Telegram: [] as typeof enabledSources }
+  );
+
   const totalSources = enabledSources.length;
-  const newsCount = byPlatform.News.length;
-  const twitterCount = byPlatform.Twitter.length;
-  const telegramCount = byPlatform.Telegram.length;
+  const newsCount = groupByPlatform.News.length;
+  const twitterCount = groupByPlatform.Twitter.length;
+  const telegramCount = groupByPlatform.Telegram.length;
 
   console.log(`开始执行定时任务（共 ${totalSources} 个 RSS 源：News=${newsCount}, Twitter=${twitterCount}, Telegram=${telegramCount}）...`);
 
@@ -144,9 +209,9 @@ async function handleScheduled(event: ScheduledEvent, env: Env): Promise<void> {
   };
 
   const platforms: Array<{ platform: 'News' | 'Twitter' | 'Telegram'; sources: typeof enabledSources }> = [
-    { platform: 'News', sources: byPlatform.News },
-    { platform: 'Twitter', sources: byPlatform.Twitter },
-    { platform: 'Telegram', sources: byPlatform.Telegram },
+    { platform: 'News', sources: groupByPlatform.News },
+    { platform: 'Twitter', sources: groupByPlatform.Twitter },
+    { platform: 'Telegram', sources: groupByPlatform.Telegram },
   ];
 
   for (const { platform, sources } of platforms) {
@@ -164,7 +229,14 @@ async function handleScheduled(event: ScheduledEvent, env: Env): Promise<void> {
       }
 
       console.log(`正在处理 RSS 源: ${source.name} (${source.url})`);
-      const items = await fetchRSSFeed(source.url, source.isRssHub || false);
+      let items: Awaited<ReturnType<typeof fetchRSSFeed>> = [];
+      let fetchError: string | null = null;
+      try {
+        items = await fetchRSSFeed(source.url, source.isRssHub || false);
+      } catch (e) {
+        fetchError = e instanceof Error ? e.message : String(e);
+        items = [];
+      }
       console.log(`从 ${source.name} 获取到 ${items.length} 篇文章`);
 
       if (items.length === 0) {
@@ -175,86 +247,106 @@ async function handleScheduled(event: ScheduledEvent, env: Env): Promise<void> {
       let processedCount = 0;
       let skippedCount = 0;
       let errorCount = 0;
+  const maxConcurrency = SCHEDULER_CONFIG.aiAnalysisConcurrency;
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-      const itemsToProcess = items.slice(0, maxArticlesPerSource);
-      console.log(`限制处理前 ${itemsToProcess.length} 篇文章（共 ${items.length} 篇）`);
+  const itemsToProcess = items.slice(0, maxArticlesPerSource);
+  console.log(`限制处理前 ${itemsToProcess.length} 篇文章（共 ${items.length} 篇）`);
 
-      for (const item of itemsToProcess) {
-        if (totalProcessed >= maxTotalArticles) {
-          console.log(`已达到总文章处理限制（${maxTotalArticles} 篇），停止处理当前源`);
-          break;
+  const queue = [...itemsToProcess];
+  const workerCount = Math.min(maxConcurrency, queue.length);
+
+  const runWorker = async () => {
+    while (queue.length > 0 && totalProcessed < maxTotalArticles) {
+      const item = queue.shift();
+      if (!item) break;
+
+      if (!item.link || !item.title) {
+        continue;
+      }
+
+      if (await urlExists(env.DB, item.link)) {
+        skippedCount++;
+        if (skippedCount <= 3) {
+          console.log(`跳过已存在的文章: ${item.title}`);
         }
+        continue;
+      }
 
-        if (!item.link || !item.title) {
-          continue;
-        }
+      const rawDescription = item.description || item['content:encoded'] || '';
+      const description = sanitizeContent(rawDescription, source.platform as PlatformType);
 
-        if (await urlExists(env.DB, item.link)) {
+      console.log(`[并发处理] 正在分析: ${item.title}`);
+      const analysis = await analyzeNews(item.title, description, env);
+
+      if (!analysis) {
+        errorCount++;
+        console.warn(`AI 分析失败，跳过文章: ${item.title}`);
+        continue;
+      }
+
+      const publishedAt = parseDate(item.pubDate);
+      const article: NewArticle = {
+        url: item.link,
+        sourceId: source.slug || getSourceIdFromName(source.name),
+        platform: source.platform as PlatformType,
+        publishedAt: publishedAt ?? Date.now(),
+        createdAt: Date.now(),
+        titleEn: item.title || '',
+        titleZh: analysis.title_zh || '',
+        summaryEn: analysis.summary_en || null,
+        summaryZh: analysis.summary_zh || null,
+        category: analysis.category || null,
+        tags: analysis.tags && analysis.tags.length > 0 ? JSON.stringify(analysis.tags) : null,
+        score: analysis.score || null,
+        aiReasoning: analysis.ai_reasoning || null,
+      };
+
+      try {
+        await saveArticle(env.DB, article);
+        processedCount++;
+        totalProcessed++;
+        console.log(
+          `✅ 成功保存文章 (当前源 ${processedCount}/${itemsToProcess.length}, 全局 ${totalProcessed}/${maxTotalArticles}): ${item.title}`
+        );
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (errorMessage.includes('UNIQUE constraint') && errorMessage.includes('articles.url')) {
           skippedCount++;
-          if (skippedCount <= 3) {
-            console.log(`跳过已存在的文章: ${item.title}`);
+          if (skippedCount === 1) {
+            console.log(`⚠️ 并发插入冲突（可能多实例处理同一篇文章）`);
           }
-          continue;
-        }
-
-        const rawDescription = item.description || item['content:encoded'] || '';
-        const description = sanitizeContent(rawDescription, source.platform);
-
-        console.log(`[${processedCount + 1}/${itemsToProcess.length}] 正在分析文章: ${item.title}`);
-        const analysis = await analyzeNews(item.title, description, env);
-
-        if (!analysis) {
+        } else {
           errorCount++;
-          console.warn(`AI 分析失败，跳过文章: ${item.title}`);
-          continue;
-        }
-
-        const publishedAt = parseDate(item.pubDate);
-        const article: NewArticle = {
-          url: item.link,
-          sourceId: source.id || getSourceIdFromName(source.name),
-          platform: source.platform,
-          publishedAt: publishedAt ?? Date.now(),
-          createdAt: Date.now(),
-          titleEn: item.title || '',
-          titleZh: analysis.title_zh || '',
-          summaryEn: analysis.summary_en || null,
-          summaryZh: analysis.summary_zh || null,
-          category: analysis.category || null,
-          tags: analysis.tags && analysis.tags.length > 0 ? JSON.stringify(analysis.tags) : null,
-          score: analysis.score || null,
-          aiReasoning: analysis.ai_reasoning || null,
-        };
-
-        try {
-          await saveArticle(env.DB, article);
-          processedCount++;
-          totalProcessed++;
-          console.log(
-            `✅ 成功保存文章 (${processedCount}/${itemsToProcess.length}, 总计 ${totalProcessed}/${maxTotalArticles}): ${item.title}`
-          );
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          if (errorMessage.includes('UNIQUE constraint') && errorMessage.includes('articles.url')) {
-            skippedCount++;
-            if (skippedCount === 1) {
-              console.log(`⚠️ 检测到并发插入冲突（正常现象，可能多个实例同时处理同一篇文章）`);
-            }
-          } else {
-            errorCount++;
-            console.error(`❌ 保存文章失败: ${item.title}`, error);
-          }
-        }
-
-        if (processedCount < itemsToProcess.length) {
-          await new Promise((resolve) => setTimeout(resolve, delayBetweenArticles));
+          console.error(`❌ 保存文章失败: ${item.title}`, error);
         }
       }
+
+      // 轻量延迟以避免极端突发
+      if (delayBetweenArticles > 0) {
+        await sleep(delayBetweenArticles);
+      }
+    }
+  };
+
+  await Promise.all(Array.from({ length: workerCount }).map(() => runWorker()));
 
       platformSourcesProcessed[platform]++;
       console.log(
         `✅ ${source.name} (${platform}) 处理完成：成功 ${processedCount} 篇，跳过 ${skippedCount} 篇，错误 ${errorCount} 篇`
       );
+
+      // 更新 source 健康状态
+      const statusMsg =
+        items.length === 0
+          ? fetchError
+            ? `Error: ${fetchError}`
+            : 'OK (0 items)'
+          : `OK (${processedCount} processed, ${skippedCount} skipped, ${errorCount} errors)`;
+      await updateSourceStatus(env.DB, source.slug, {
+        status: statusMsg,
+        ok: !fetchError,
+      });
     }
   }
 

@@ -63,7 +63,11 @@ export const SOURCE_NAME_MAP: Record<string, string> = SOURCE_TEMPLATES.reduce((
 }, {} as Record<string, string>);
 
 function resolveBase(rssHubBase?: string): string {
-  const base = (rssHubBase || APP_CONFIG.rssHubBase || '').trim().replace(/\/+$/, '');
+  let base = (rssHubBase || APP_CONFIG.rssHubBase || '').trim().replace(/\/+$/, '');
+  // 确保带协议，若未写协议，默认使用 https
+  if (base && !/^https?:\/\//i.test(base)) {
+    base = `https://${base}`;
+  }
   if (!base) {
     throw new Error('RSSHUB_BASE is not set. Please configure it as an environment variable.');
   }

@@ -1,6 +1,6 @@
 {
   "name": "zimmerwald",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "国际共运新闻聚合平台",
   "main": "worker.ts",
   "scripts": {
@@ -8,7 +8,9 @@
     "deploy": "wrangler deploy",
     "db:create": "wrangler d1 create zimmerwald-db",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit push"
+    "db:migrate": "drizzle-kit push",
+    "build": "esbuild scripts/seed_sources.ts --bundle --platform=neutral --format=esm --outdir=dist/scripts --log-level=info",
+    "db:seed": "npm run build && node ./dist/scripts/seed_sources.js --sql > dist/scripts/seed_sources.sql && npx wrangler d1 execute zimmerwald-db --file=./dist/scripts/seed_sources.sql --remote"
   },
   "keywords": [
     "cloudflare-workers",
@@ -27,6 +29,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240117.0",
     "drizzle-kit": "^0.20.0",
+    "esbuild": "^0.27.1",
     "typescript": "^5.3.3",
     "wrangler": "^4.54.0"
   }

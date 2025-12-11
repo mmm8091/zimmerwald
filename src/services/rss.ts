@@ -21,6 +21,8 @@ export interface RSSItem {
 export async function fetchRSSFeed(url: string, isRssHub: boolean = false): Promise<RSSItem[]> {
   try {
     console.log(`开始抓取 RSS: ${url}`);
+    // 兼容未带协议的地址，默认补 https://
+    const safeUrl = /^https?:\/\//i.test(url) ? url : `https://${url}`;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
       controller.abort();
@@ -35,8 +37,8 @@ export async function fetchRSSFeed(url: string, isRssHub: boolean = false): Prom
           'Accept-Language': 'en-US,en;q=0.9',
           // 不设置 Accept-Encoding，让 Cloudflare Workers 自动处理
           // 设置 Origin 为 RSSHub 的地址，模拟同源请求
-          'Origin': new URL(url).origin,
-          'Referer': url,
+          'Origin': new URL(safeUrl).origin,
+          'Referer': safeUrl,
         }
       : {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -45,7 +47,7 @@ export async function fetchRSSFeed(url: string, isRssHub: boolean = false): Prom
 
     let response: Response;
     try {
-      response = await fetch(url, {
+      response = await fetch(safeUrl, {
         headers,
         signal: controller.signal,
       });
