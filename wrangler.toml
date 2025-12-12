@@ -16,9 +16,12 @@ binding = "DB"
 database_name = "zimmerwald-db"
 database_id = "ab708ac9-0d6b-41ee-9e3c-bee7bd9e96a7"
 
-# 定时触发器配置（每10分钟执行一次）
+# 定时触发器配置
 [triggers]
-crons = ["*/10 * * * *"]  # 每10分钟执行一次
+crons = [
+  "*/10 * * * *",  # 每10分钟执行一次（RSS 抓取）
+  "0 0 * * *"      # 每天 UTC 0:00 执行（每日简报生成）
+]
 
 # Observability 配置（日志）
 [observability]

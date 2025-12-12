@@ -19,3 +19,23 @@ export const APP_CONFIG: AppConfig = {
   rssHubBase: envRssHubBase || '',
 };
 
+/**
+ * 每日简报配置
+ */
+export const BRIEFING_ALERT_CONFIG = {
+  // 战略警戒等级阈值配置（1-5，1为最高警戒）
+  // 基于最高分和高价值文章比例计算
+  thresholds: [
+    { level: 1, minScore: 90, minRatio: 0.1, labelZh: '烈火', labelEn: 'INFERNO', code: 'INFERNO' }, // 最高警戒
+    { level: 2, minScore: 80, minRatio: 0.05, labelZh: '野火', labelEn: 'WILDFIRE', code: 'WILDFIRE' },
+    { level: 3, minScore: 70, minRatio: 0.02, labelZh: '星火', labelEn: 'SPARK', code: 'SPARK' },
+    { level: 4, minScore: 60, minRatio: 0, labelZh: '硝烟', labelEn: 'SMOKE', code: 'SMOKE' },
+    { level: 5, minScore: 0, minRatio: 0, labelZh: '迷雾', labelEn: 'FOG', code: 'FOG' }, // 默认最低
+  ],
+  defaultLevel: 5, // 默认等级
+  highValueThreshold: 80, // 高价值文章阈值
+  strategicThreshold: 80, // 战略级文章阈值
+  topKeywordsCount: 10, // 提取的关键词数量
+  keyArticlesCount: 10, // 关联的关键文章数量
+};
+

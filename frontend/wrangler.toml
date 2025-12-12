@@ -1,0 +1,14 @@
+# Cloudflare Pages 配置文件
+# 用于 GitHub 集成部署
+
+name = "zimmerwald-frontend"
+compatibility_date = "2024-01-01"
+
+[build]
+command = "cd frontend && npm install && npm run build"
+cwd = "."
+
+[build.upload]
+format = "service-worker"
+dir = "frontend/dist"
+

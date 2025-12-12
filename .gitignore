@@ -6,6 +6,7 @@ pnpm-lock.yaml
 
 # Build outputs
 dist/
+frontend/dist/
 .wrangler/
 .dev.vars
 drizzle/

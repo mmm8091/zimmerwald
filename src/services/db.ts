@@ -88,6 +88,7 @@ export async function getNews(
     category?: 'Labor' | 'Politics' | 'Conflict' | 'Theory';
     platform?: 'News' | 'Twitter' | 'Telegram';
     limit?: number;
+    since?: number;
   }
 ): Promise<Article[]> {
   const d = getDb(db);
@@ -109,6 +110,10 @@ export async function getNews(
 
   if (options.tag && options.tag.trim().length > 0) {
     conditions.push(like(articles.tags, `%${options.tag.trim()}%`));
+  }
+
+  if (options.since) {
+    conditions.push(gte(articles.createdAt, options.since));
   }
 
   const query = d

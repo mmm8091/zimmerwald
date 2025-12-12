@@ -75,3 +75,113 @@ export const LLM_CONFIG = {
   temperature: 1.0,
 };
 
+/**
+ * 每日简报生成配置
+ */
+export const BRIEFING_CONFIG = {
+  // AI 生成配置
+  temperature: 1,
+  maxTokensZh: 3000, // 中文摘要最大 tokens
+  maxTokensEn: 3000, // 英文摘要最大 tokens
+  minWordsZh: 500, // 中文最少字数
+  maxWordsZh: 1000, // 中文最多字数
+  minWordsEn: 300, // 英文最少字数
+  maxWordsEn: 600, // 英文最多字数
+  topArticlesCount: 20, // 用于生成简报的高分文章数量
+  minScoreForBriefing: 60, // 纳入简报的最低分数
+};
+
+/**
+ * 每日简报生成提示词模板
+ */
+export const BRIEFING_PROMPT_TEMPLATE = {
+  systemZh: '你是一名专业的国际共运情报分析师。你的任务是生成客观、冷静、直指核心的每日简报。使用 Markdown 格式。',
+  systemEn: 'You are a professional international communist intelligence analyst. Your task is to generate objective, calm, and to-the-point daily briefings. Use Markdown format.',
+  
+  userZh: (params: {
+    date: string;
+    topArticlesCount: number;
+    topArticles: Array<{
+      score: number;
+      title_zh: string;
+      title_en: string;
+      summary_zh: string;
+      summary_en: string;
+    }>;
+    totalAnalyzed: number;
+    highValueCount: number;
+    strategicCount: number;
+    keywords: string[];
+    alertLevel: number;
+    alertLevelCode: string;
+    alertLevelLabelZh: string;
+    alertLevelLabelEn: string;
+  }) => `你是一名国际共运情报分析师。请基于以下过去 24 小时的高价值情报（${params.topArticlesCount} 篇），生成一份简洁的每日简报。
+
+要求：
+1. 用中文撰写，客观、冷静、直指核心
+2. 格式：Markdown，包含标题、关键事件、趋势分析、战略判断
+3. 重点关注：阶级冲突、系统性危机、创新性战术、重大突破
+4. 字数控制在 ${BRIEFING_CONFIG.minWordsZh}-${BRIEFING_CONFIG.maxWordsZh} 字
+
+高价值情报列表：
+${params.topArticles
+  .map(
+    (a, i) =>
+      `${i + 1}. [${a.score}分] ${a.title_zh || a.title_en}\n   ${a.summary_zh || a.summary_en || '无摘要'}`
+  )
+  .join('\n\n')}
+
+统计信息：
+- 总分析数：${params.totalAnalyzed}
+- 高价值（≥80分）：${params.highValueCount}
+- 战略级（≥80分）：${params.strategicCount}
+- 关键词：${params.keywords.join('、')}
+- 战略警戒等级：${params.alertLevelCode}（${params.alertLevelLabelZh}）
+
+请生成简报：`,
+
+  userEn: (params: {
+    date: string;
+    topArticlesCount: number;
+    topArticles: Array<{
+      score: number;
+      title_zh: string;
+      title_en: string;
+      summary_zh: string;
+      summary_en: string;
+    }>;
+    totalAnalyzed: number;
+    highValueCount: number;
+    strategicCount: number;
+    keywords: string[];
+    alertLevel: number;
+    alertLevelCode: string;
+    alertLevelLabelZh: string;
+    alertLevelLabelEn: string;
+  }) => `You are an international communist intelligence analyst. Based on the following high-value intelligence from the past 24 hours (${params.topArticlesCount} articles), generate a concise daily briefing.
+
+Requirements:
+1. Write in English, objective, calm, and to the point
+2. Format: Markdown, including title, key events, trend analysis, strategic assessment
+3. Focus on: class conflicts, systemic crises, innovative tactics, major breakthroughs
+4. Keep it between ${BRIEFING_CONFIG.minWordsEn}-${BRIEFING_CONFIG.maxWordsEn} words
+
+High-value intelligence list:
+${params.topArticles
+  .map(
+    (a, i) =>
+      `${i + 1}. [Score: ${a.score}] ${a.title_en || a.title_zh}\n   ${a.summary_en || a.summary_zh || 'No summary'}`
+  )
+  .join('\n\n')}
+
+Statistics:
+- Total analyzed: ${params.totalAnalyzed}
+- High-value (≥80): ${params.highValueCount}
+- Strategic (≥80): ${params.strategicCount}
+- Keywords: ${params.keywords.join(', ')}
+- Strategic Alert Level: ${params.alertLevelCode} (${params.alertLevelLabelEn})
+
+Please generate the briefing:`,
+};
+

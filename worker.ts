@@ -14,12 +14,17 @@ import {
   updateSourceStatus,
   getSourceStats,
 } from './src/services/db';
+import {
+  generateDailyBriefing,
+  getDailyBriefing,
+  getLatestBriefing,
+  getScoreHistogram,
+} from './src/services/briefings';
 import { analyzeNews } from './src/services/ai';
 import { fetchRSSFeed, parseDate, sanitizeContent } from './src/services/rss';
 import { SCHEDULER_CONFIG } from './src/config/scheduler';
 import { getSourceIdFromName, getSourceNameFromId } from './src/core/sources';
 import type { Env, PlatformType } from './src/services/types';
-import { generateHTML } from './src/frontend/html';
 
 // 初始化 Hono App
 const app = new Hono<{ Bindings: Env }>();
@@ -28,16 +33,26 @@ const app = new Hono<{ Bindings: Env }>();
 app.use('/*', cors());
 
 /**
- * 首页：返回前端 HTML
+ * 首页：重定向到前端 Pages（前端已迁移到 Cloudflare Pages）
+ * 如果前端和 Worker 在同一域名下，可以返回简单的重定向信息
  */
 app.get('/', (c) => {
-  const html = generateHTML();
-  return c.html(html);
+  return c.json({ 
+    message: 'Zimmerwald API',
+    version: '1.5',
+    endpoints: {
+      news: '/api/news',
+      sources: '/api/sources/stats',
+      briefings: '/api/daily-briefings',
+      histogram: '/api/stats/histogram',
+    },
+    note: 'Frontend is deployed on Cloudflare Pages. Please access the frontend URL to use the application.',
+  });
 });
 
 /**
  * GET /api/news - 查询新闻列表
- * 支持筛选参数：min_score, tag, category, platform, limit
+ * 支持筛选参数：min_score, tag, category, platform, limit, days
  */
 app.get('/api/news', async (c) => {
   try {
@@ -46,14 +61,17 @@ app.get('/api/news', async (c) => {
     const categoryParam = c.req.query('category');
     const platformParam = c.req.query('platform');
     const limitParam = c.req.query('limit');
+    const daysParam = c.req.query('days');
 
     const minScore = minScoreParam ? parseInt(minScoreParam, 10) : undefined;
     const tag = tagParam || undefined;
     const category = categoryParam as 'Labor' | 'Politics' | 'Conflict' | 'Theory' | undefined;
     const platform = platformParam as 'News' | 'Twitter' | 'Telegram' | undefined;
     const limit = limitParam ? parseInt(limitParam, 10) : 30;
+    const days = daysParam ? parseInt(daysParam, 10) : 30;
+    const since = Number.isNaN(days) ? undefined : Date.now() - days * 24 * 60 * 60 * 1000;
 
-    console.log('[/api/news] 查询参数:', { minScore, tag, category, platform, limit });
+    console.log('[/api/news] 查询参数:', { minScore, tag, category, platform, limit, days });
 
     const [dbArticles, sourceNameMap] = await Promise.all([
       getNews(c.env.DB, {
@@ -62,6 +80,7 @@ app.get('/api/news', async (c) => {
       category,
       platform,
       limit: Number.isNaN(limit) ? 30 : limit,
+      since,
       }),
       getSourceNameMap(c.env.DB),
     ]);
@@ -166,16 +185,95 @@ app.get('/api/sources/stats', async (c) => {
 });
 
 /**
- * GET /api/daily-briefings - 预留接口（v1.4 将由 AI 生成）
+ * GET /api/daily-briefings - 获取指定日期的每日简报
+ * 查询参数：?date=2025-12-12 (可选，默认最新)
  */
 app.get('/api/daily-briefings', async (c) => {
-  return c.json({ items: [], success: true, note: 'daily_briefings will be populated in future version.' });
+  try {
+    const date = c.req.query('date');
+    const briefing = date ? await getDailyBriefing(c.env.DB, date) : await getLatestBriefing(c.env.DB);
+
+    if (!briefing) {
+      return c.json({ error: 'Briefing not found', success: false }, 404);
+    }
+
+    return c.json(briefing);
+  } catch (error) {
+    console.error('[/api/daily-briefings] 处理请求时出错:', error);
+    return c.json({ error: error instanceof Error ? error.message : '未知错误', success: false }, 500);
+  }
 });
 
 /**
- * 定时任务调度器：按平台分组抓取 RSS 并分析
+ * GET /api/daily-briefings/latest - 获取最新简报
+ */
+app.get('/api/daily-briefings/latest', async (c) => {
+  try {
+    const briefing = await getLatestBriefing(c.env.DB);
+
+    if (!briefing) {
+      return c.json({ error: 'No briefing available', success: false }, 404);
+    }
+
+    return c.json(briefing);
+  } catch (error) {
+    console.error('[/api/daily-briefings/latest] 处理请求时出错:', error);
+    return c.json({ error: error instanceof Error ? error.message : '未知错误', success: false }, 500);
+  }
+});
+
+/**
+ * GET /api/stats/histogram - 获取分数分布直方图数据
+ * 查询参数：?days=30 (可选，默认30天)
+ */
+app.get('/api/stats/histogram', async (c) => {
+  try {
+    const daysParam = c.req.query('days');
+    const days = daysParam ? parseInt(daysParam, 10) : 30;
+
+    if (isNaN(days) || days < 1 || days > 365) {
+      return c.json({ error: 'Invalid days parameter', success: false }, 400);
+    }
+
+    const histogram = await getScoreHistogram(c.env.DB, days);
+    return c.json({ histogram, days });
+  } catch (error) {
+    console.error('[/api/stats/histogram] 处理请求时出错:', error);
+    return c.json({ error: error instanceof Error ? error.message : '未知错误', success: false }, 500);
+  }
+});
+
+/**
+ * 定时任务调度器：根据 Cron 表达式执行不同任务
  */
 async function handleScheduled(event: ScheduledEvent, env: Env): Promise<void> {
+  const cron = event.cron;
+
+  // 每日简报生成（UTC 0:00）
+  if (cron === '0 0 * * *') {
+    console.log('[Cron] 开始生成每日简报...');
+    try {
+      await generateDailyBriefing(env.DB, env);
+      console.log('[Cron] 每日简报生成完成');
+    } catch (error) {
+      console.error('[Cron] 每日简报生成失败:', error);
+    }
+    return;
+  }
+
+  // RSS 抓取任务（每10分钟）
+  if (cron === '*/10 * * * *') {
+    await handleRSSFetching(env);
+    return;
+  }
+
+  console.warn(`[Cron] 未知的 Cron 表达式: ${cron}`);
+}
+
+/**
+ * RSS 抓取任务：按平台分组抓取 RSS 并分析
+ */
+async function handleRSSFetching(env: Env): Promise<void> {
   const enabledSources = await getEnabledSources(env.DB);
   if (!enabledSources || enabledSources.length === 0) {
     console.warn('没有启用的 sources，跳过定时任务');
@@ -285,12 +383,24 @@ async function handleScheduled(event: ScheduledEvent, env: Env): Promise<void> {
         continue;
       }
 
-      const publishedAt = parseDate(item.pubDate);
+      // 尽量从多种字段提取发布时间，避免全部回落到当前时间
+      const publishedAt =
+        parseDate(
+          // 常见字段：pubDate / pubdate / published / updated / isoDate
+          item.pubDate ||
+            (item as any).pubdate ||
+            (item as any).published ||
+            (item as any).updated ||
+            (item as any).isoDate ||
+            // RSSHub 可能提供的时间字段
+            (item as any).pub_time ||
+            (item as any).pubTime
+        ) ?? Date.now();
       const article: NewArticle = {
         url: item.link,
         sourceId: source.slug || getSourceIdFromName(source.name),
         platform: source.platform as PlatformType,
-        publishedAt: publishedAt ?? Date.now(),
+        publishedAt,
         createdAt: Date.now(),
         titleEn: item.title || '',
         titleZh: analysis.title_zh || '',
