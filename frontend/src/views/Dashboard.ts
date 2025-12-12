@@ -57,25 +57,29 @@ export const Dashboard = {
         ]),
         h('div', { class: 'grid grid-cols-1 lg:grid-cols-4 gap-6' }, [
           h('div', { class: 'lg:col-span-1 space-y-6' }, [
+            // Time Filter - 独立显示在最上面
+            h(Card, { padding: 'md' }, {
+              default: () => [
+                h('h2', { class: 'text-lg font-semibold text-zinc-100 mb-4' },
+                  uiStore.lang === 'zh' ? '时间筛选' : 'Time Filter'),
+                h('select', {
+                  class: 'w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-600',
+                  value: filterStore.days,
+                  onChange: (e: any) => { filterStore.days = parseInt(e.target.value); },
+                }, [
+                  h('option', { value: 1 }, uiStore.lang === 'zh' ? '24小时内' : '24 hours'),
+                  h('option', { value: 7 }, uiStore.lang === 'zh' ? '7天内' : '7 days'),
+                  h('option', { value: 30 }, uiStore.lang === 'zh' ? '30天内' : '30 days'),
+                  h('option', { value: 90 }, uiStore.lang === 'zh' ? '90天内' : '90 days'),
+                  h('option', { value: 0 }, uiStore.lang === 'zh' ? '全部' : 'All'),
+                ]),
+              ],
+            }),
             // Score Histogram Filter
             h(Card, { padding: 'md' }, {
               default: () => [
-                h('div', { class: 'flex items-center justify-between mb-4' }, [
-                  h('h2', { class: 'text-lg font-semibold text-zinc-100' },
-                    uiStore.lang === 'zh' ? '分数筛选' : 'Score Filter'),
-                  h('div', { class: 'flex items-center gap-2 text-sm text-zinc-300' }, [
-                    h('span', uiStore.lang === 'zh' ? '时间' : 'Range'),
-                    h('select', {
-                      class: 'bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-sm',
-                      value: filterStore.days,
-                      onChange: (e: any) => { filterStore.days = parseInt(e.target.value); },
-                    }, [
-                      h('option', { value: 7 }, uiStore.lang === 'zh' ? '近7天' : '7d'),
-                      h('option', { value: 30 }, uiStore.lang === 'zh' ? '近30天' : '30d'),
-                      h('option', { value: 90 }, uiStore.lang === 'zh' ? '近90天' : '90d'),
-                    ]),
-                  ]),
-                ]),
+                h('h2', { class: 'text-lg font-semibold text-zinc-100 mb-4' },
+                  uiStore.lang === 'zh' ? '分数筛选' : 'Score Filter'),
                 h(ScoreHistogram),
               ],
             }),

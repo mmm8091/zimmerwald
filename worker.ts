@@ -71,7 +71,8 @@ app.get('/api/news', async (c) => {
     const platform = platformParam as 'News' | 'Twitter' | 'Telegram' | undefined;
     const limit = limitParam ? parseInt(limitParam, 10) : 30;
     const days = daysParam ? parseInt(daysParam, 10) : 30;
-    const since = Number.isNaN(days) ? undefined : Date.now() - days * 24 * 60 * 60 * 1000;
+    // days 为 0 表示全部，不限制时间
+    const since = (Number.isNaN(days) || days === 0) ? undefined : Date.now() - days * 24 * 60 * 60 * 1000;
 
     console.log('[/api/news] 查询参数:', { minScore, tags, category, platform, limit, days });
 

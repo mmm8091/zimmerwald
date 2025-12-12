@@ -6,7 +6,7 @@ export const filterStore = reactive({
   selectedPlatform: null as string | null,
   selectedCategory: null as string | null,
   selectedTags: [] as string[], // 改为数组支持多选
-  days: 30,
+  days: 30, // 30 表示 30 天，0 表示全部，1 表示 24 小时
   get queryParams() {
     return {
       min_score: this.scoreRange[0],
@@ -14,7 +14,7 @@ export const filterStore = reactive({
       platform: this.selectedPlatform || undefined,
       category: this.selectedCategory || undefined,
       tags: this.selectedTags.length > 0 ? this.selectedTags.join(',') : undefined, // 多个标签用逗号分隔
-      days: this.days,
+      days: this.days === 0 ? undefined : this.days, // 0 表示全部，不传 days 参数
       limit: 200,
     };
   },
@@ -43,7 +43,7 @@ export const filterStore = reactive({
     this.selectedPlatform = null;
     this.selectedCategory = null;
     this.selectedTags = [];
-    this.days = 30;
+    this.days = 30; // 默认 30 天
   },
 });
 
