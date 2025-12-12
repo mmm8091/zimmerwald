@@ -31,9 +31,12 @@ export const filterStore = reactive({
     const index = this.selectedTags.indexOf(tag);
     if (index > -1) {
       this.selectedTags.splice(index, 1);
+      console.log('[filterStore] 移除标签:', tag, '当前标签:', this.selectedTags);
     } else {
       this.selectedTags.push(tag);
+      console.log('[filterStore] 添加标签:', tag, '当前标签:', this.selectedTags);
     }
+    console.log('[filterStore] queryParams:', this.queryParams);
   },
   clearTags() {
     this.selectedTags = [];

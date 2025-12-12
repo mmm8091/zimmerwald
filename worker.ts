@@ -74,7 +74,8 @@ app.get('/api/news', async (c) => {
     // days 为 0 表示全部，不限制时间
     const since = (Number.isNaN(days) || days === 0) ? undefined : Date.now() - days * 24 * 60 * 60 * 1000;
 
-    console.log('[/api/news] 查询参数:', { minScore, tags, category, platform, limit, days });
+    console.log('[/api/news] 查询参数:', { minScore, tags, category, platform, limit, days, since });
+    console.log('[/api/news] tags 参数详情:', JSON.stringify(tags));
 
     const [dbArticles, sourceNameMap] = await Promise.all([
       getNews(c.env.DB, {
@@ -87,6 +88,18 @@ app.get('/api/news', async (c) => {
       }),
       getSourceNameMap(c.env.DB),
     ]);
+    
+    console.log('[/api/news] 返回文章数量:', dbArticles.length);
+    if (tags && tags.length > 0) {
+      console.log('[/api/news] 标签筛选后的文章数量:', dbArticles.length);
+      // 检查前几篇文章的标签
+      if (dbArticles.length > 0) {
+        const sample = dbArticles.slice(0, 3);
+        sample.forEach((article, idx) => {
+          console.log(`[/api/news] 文章 ${idx + 1} 标签:`, article.tags);
+        });
+      }
+    }
 
     const mapped = dbArticles.map((row) => {
       const title =

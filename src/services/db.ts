@@ -112,14 +112,20 @@ export async function getNews(
   // 支持多标签筛选（OR 逻辑）
   // 使用 SQLite JSON 函数进行精确匹配
   if (options.tags && options.tags.length > 0) {
+    console.log('[getNews] 开始处理标签筛选，标签列表:', options.tags);
     // 使用 OR 逻辑：文章包含任意一个标签即可
     const tagConditions: any[] = [];
     for (const tag of options.tags) {
-      if (!tag || !tag.trim()) continue;
+      if (!tag || !tag.trim()) {
+        console.log('[getNews] 跳过空标签:', tag);
+        continue;
+      }
       // 标签格式是 "en|zh"，需要匹配 JSON 数组中的 en 或 zh 字段
       const [en, zh] = tag.split('|');
       const enTrimmed = en?.trim();
       const zhTrimmed = zh?.trim();
+      
+      console.log('[getNews] 处理标签:', { tag, enTrimmed, zhTrimmed });
       
       // 使用 SQLite JSON 函数：检查 JSON 数组中是否有匹配的标签
       // 使用 sql.raw 来构建 SQL，因为 json_each 需要动态值
@@ -127,40 +133,43 @@ export async function getNews(
         // 转义单引号防止 SQL 注入
         const enEscaped = enTrimmed.replace(/'/g, "''");
         const zhEscaped = zhTrimmed.replace(/'/g, "''");
-        // 匹配 en 或 zh 任一即可，同时检查 tags 不为 NULL
-        tagConditions.push(
-          sql.raw(`articles.tags IS NOT NULL AND EXISTS (
-            SELECT 1 FROM json_each(articles.tags) 
-            WHERE json_extract(value, '$.en') = '${enEscaped}' 
-               OR json_extract(value, '$.zh') = '${zhEscaped}'
-          )`)
-        );
+        const sqlCondition = sql.raw(`articles.tags IS NOT NULL AND EXISTS (
+          SELECT 1 FROM json_each(articles.tags) 
+          WHERE json_extract(value, '$.en') = '${enEscaped}' 
+             OR json_extract(value, '$.zh') = '${zhEscaped}'
+        )`);
+        console.log('[getNews] 生成 SQL 条件 (en+zh):', sqlCondition);
+        tagConditions.push(sqlCondition);
       } else if (enTrimmed) {
         const enEscaped = enTrimmed.replace(/'/g, "''");
-        tagConditions.push(
-          sql.raw(`articles.tags IS NOT NULL AND EXISTS (
-            SELECT 1 FROM json_each(articles.tags) 
-            WHERE json_extract(value, '$.en') = '${enEscaped}'
-          )`)
-        );
+        const sqlCondition = sql.raw(`articles.tags IS NOT NULL AND EXISTS (
+          SELECT 1 FROM json_each(articles.tags) 
+          WHERE json_extract(value, '$.en') = '${enEscaped}'
+        )`);
+        console.log('[getNews] 生成 SQL 条件 (en only):', sqlCondition);
+        tagConditions.push(sqlCondition);
       } else if (zhTrimmed) {
         const zhEscaped = zhTrimmed.replace(/'/g, "''");
-        tagConditions.push(
-          sql.raw(`articles.tags IS NOT NULL AND EXISTS (
-            SELECT 1 FROM json_each(articles.tags) 
-            WHERE json_extract(value, '$.zh') = '${zhEscaped}'
-          )`)
-        );
+        const sqlCondition = sql.raw(`articles.tags IS NOT NULL AND EXISTS (
+          SELECT 1 FROM json_each(articles.tags) 
+          WHERE json_extract(value, '$.zh') = '${zhEscaped}'
+        )`);
+        console.log('[getNews] 生成 SQL 条件 (zh only):', sqlCondition);
+        tagConditions.push(sqlCondition);
       }
     }
     
     if (tagConditions.length > 0) {
+      console.log('[getNews] 标签条件数量:', tagConditions.length);
       // 多个标签之间是 OR 关系
       if (tagConditions.length === 1) {
         conditions.push(tagConditions[0]);
       } else {
         conditions.push(or(...tagConditions));
       }
+      console.log('[getNews] 已添加标签筛选条件');
+    } else {
+      console.log('[getNews] 警告：没有有效的标签条件');
     }
   } else if (options.tag && options.tag.trim().length > 0) {
     // 兼容旧版本：单个标签

@@ -16,18 +16,25 @@ export const Dashboard = {
     const tagCloudParams = computed(() => {
       const params = { ...filterStore.queryParams };
       delete params.tags; // 标签云不包含标签筛选
+      console.log('[Dashboard] tagCloudParams:', params);
       return params;
     });
     
     const { data: articlesData, isLoading, isError, refetch } = useQuery({
       queryKey: computed(() => ['articles', filterStore.queryParams]),
-      queryFn: () => getArticles(filterStore.queryParams),
+      queryFn: () => {
+        console.log('[Dashboard] 查询文章，参数:', filterStore.queryParams);
+        return getArticles(filterStore.queryParams);
+      },
     });
     
     // 用于标签云的数据（基于当前筛选，但不包括标签筛选）
     const { data: tagCloudData } = useQuery({
       queryKey: computed(() => ['articles-for-tags', tagCloudParams.value]),
-      queryFn: () => getArticles(tagCloudParams.value),
+      queryFn: () => {
+        console.log('[Dashboard] 查询标签云数据，参数:', tagCloudParams.value);
+        return getArticles(tagCloudParams.value);
+      },
     });
 
     watch(() => filterStore.queryParams, () => {
