@@ -153,6 +153,103 @@ export const Dashboard = {
                 ]),
               ],
             }),
+            // 标签云（热门地理 + 其他）
+            articlesData.value && Array.isArray(articlesData.value) && (articlesData.value as any[]).length > 0 && h(Card, { padding: 'md' }, {
+              default: () => {
+                // 统计所有标签
+                const allTags = computed(() => {
+                  const tagMap = new Map<string, { en: string; zh: string; count: number }>();
+                  if (!articlesData.value || !Array.isArray(articlesData.value)) return [];
+                  const articles = articlesData.value as any[];
+                  articles.forEach((article: any) => {
+                    if (article.tags && Array.isArray(article.tags)) {
+                      article.tags.forEach((tag: any) => {
+                        const key = `${tag.en}|${tag.zh}`;
+                        const existing = tagMap.get(key);
+                        if (existing) {
+                          existing.count++;
+                        } else {
+                          tagMap.set(key, {
+                            en: tag.en || '',
+                            zh: tag.zh || '',
+                            count: 1,
+                          });
+                        }
+                      });
+                    }
+                  });
+                  return Array.from(tagMap.values()).map(tag => ({
+                    ...tag,
+                    key: `${tag.en}|${tag.zh}`,
+                  }));
+                });
+                
+                // 地理标签：包含常见国家名或包含"国"字
+                const commonCountries = ['USA', 'China', 'Palestine', 'Israel', 'Russia', 'Ukraine', 'France', 'Germany', 'UK', 'India', 'Iran', 'Iraq', 'Syria', 'Yemen', 'Lebanon', 'Jordan', 'Egypt', 'Turkey', 'Saudi', 'Korea', 'Japan', 'Taiwan', 'Hong Kong', 'Pakistan', 'Bangladesh', 'Afghanistan', 'Brazil', 'Mexico', 'Canada', 'Australia', 'Italy', 'Spain', 'Poland', 'Netherlands', 'Belgium', 'Sweden', 'Norway', 'Denmark', 'Finland', 'Greece', 'Portugal', 'Austria', 'Switzerland', 'Czech', 'Hungary', 'Romania', 'Bulgaria', 'Serbia', 'Croatia', 'Slovakia', 'Slovenia', 'Lithuania', 'Latvia', 'Estonia', 'Belarus', 'Moldova', 'Georgia', 'Armenia', 'Azerbaijan', 'Kazakhstan', 'Uzbekistan', 'Thailand', 'Vietnam', 'Philippines', 'Indonesia', 'Malaysia', 'Singapore', 'Myanmar', 'Cambodia', 'Laos', 'Mongolia', 'Nepal', 'Sri Lanka', 'Myanmar', 'Chile', 'Argentina', 'Colombia', 'Venezuela', 'Peru', 'Ecuador', 'Bolivia', 'Paraguay', 'Uruguay', 'South Africa', 'Nigeria', 'Kenya', 'Ethiopia', 'Morocco', 'Algeria', 'Tunisia', 'Libya', 'Sudan', 'Somalia', 'Tanzania', 'Uganda', 'Ghana', 'Senegal', 'Ivory Coast', 'Cameroon', 'Angola', 'Mozambique', 'Madagascar', 'Zimbabwe', 'Zambia', 'Malawi', 'Mali', 'Burkina Faso', 'Niger', 'Chad', 'Mauritania', 'Guinea', 'Sierra Leone', 'Liberia', 'Togo', 'Benin', 'Gabon', 'Congo', 'DRC', 'Rwanda', 'Burundi', 'Eritrea', 'Djibouti', 'Comoros', 'Mauritius', 'Seychelles', 'Cape Verde', 'São Tomé', 'Equatorial Guinea', 'Guinea-Bissau', 'Gambia', 'Lesotho', 'Swaziland', 'Botswana', 'Namibia', 'Central African Republic'];
+                const geoTags = computed(() =>
+                  allTags.value
+                    .filter(tag => {
+                      const en = (tag.en || '').trim();
+                      const zh = (tag.zh || '').trim();
+                      // 检查是否包含常见国家名
+                      const hasCountry = commonCountries.some((c) => 
+                        en.includes(c) || zh.includes(c) || en === c || zh === c || 
+                        en.toLowerCase().includes(c.toLowerCase()) || zh.includes(c)
+                      );
+                      // 检查中文是否包含"国"字
+                      const hasGuo = zh.includes('国');
+                      return hasCountry || hasGuo;
+                    })
+                    .sort((a, b) => b.count - a.count)
+                    .slice(0, 10)
+                );
+                
+                // 非地理标签
+                const otherTags = computed(() =>
+                  allTags.value
+                    .filter(tag => !geoTags.value.find((g) => g.key === tag.key))
+                    .sort((a, b) => b.count - a.count)
+                    .slice(0, 20)
+                );
+                
+                const isSelected = (key: string) => filterStore.selectedTag === key;
+                const renderTagButton = (tag: any) =>
+                  h('button', {
+                    key: tag.key,
+                    class: [
+                      'px-3 py-1.5 rounded-lg text-sm border transition-colors',
+                      isSelected(tag.key)
+                        ? 'bg-zinc-100 text-zinc-900 border-zinc-100'
+                        : 'bg-zinc-800 text-zinc-200 border-zinc-700 hover:border-zinc-500',
+                    ],
+                    onClick: () => { filterStore.selectedTag = isSelected(tag.key) ? '' : tag.key; },
+                  }, (uiStore.lang === 'zh' ? (tag.zh || tag.en) : (tag.en || tag.zh)) + ' (' + tag.count + ')');
+                
+                return [
+                  h('div', { class: 'flex items-center justify-between mb-4' }, [
+                    h('h2', { class: 'text-lg font-semibold text-zinc-100' },
+                      uiStore.lang === 'zh' ? '标签云' : 'Tag Cloud'),
+                    h(Button, {
+                      variant: 'ghost',
+                      size: 'sm',
+                      onClick: () => { filterStore.selectedTag = ''; },
+                    }, () => uiStore.lang === 'zh' ? '清除' : 'Clear'),
+                  ]),
+                  h('div', { class: 'space-y-3' }, [
+                    h('div', { class: 'text-sm text-zinc-400' },
+                      uiStore.lang === 'zh' ? '热门地理标签（前10）' : 'Top Geo Tags (10)'),
+                    h('div', { class: 'flex flex-wrap gap-2' },
+                      geoTags.value.map(renderTagButton)
+                    ),
+                    h('div', { class: 'text-sm text-zinc-400 mt-4' },
+                      uiStore.lang === 'zh' ? '热门其他标签（前20）' : 'Top Other Tags (20)'),
+                    h('div', { class: 'flex flex-wrap gap-2' },
+                      otherTags.value.map(renderTagButton)
+                    ),
+                  ]),
+                ];
+              },
+            }),
           ]),
           h('div', { class: 'lg:col-span-3 space-y-4' }, [
             // Active Filters
