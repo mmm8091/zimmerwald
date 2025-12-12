@@ -122,29 +122,34 @@ export async function getNews(
       const zhTrimmed = zh?.trim();
       
       // 使用 SQLite JSON 函数：检查 JSON 数组中是否有匹配的标签
-      // json_each 展开 JSON 数组，然后检查每个元素的 en 或 zh 字段
+      // 使用 sql.raw 来构建 SQL，因为 json_each 需要动态值
       if (enTrimmed && zhTrimmed) {
-        // 匹配 en 或 zh 任一即可
+        // 转义单引号防止 SQL 注入
+        const enEscaped = enTrimmed.replace(/'/g, "''");
+        const zhEscaped = zhTrimmed.replace(/'/g, "''");
+        // 匹配 en 或 zh 任一即可，同时检查 tags 不为 NULL
         tagConditions.push(
-          sql`EXISTS (
-            SELECT 1 FROM json_each(${articles.tags}) 
-            WHERE json_extract(value, '$.en') = ${enTrimmed} 
-               OR json_extract(value, '$.zh') = ${zhTrimmed}
-          )`
+          sql.raw(`articles.tags IS NOT NULL AND EXISTS (
+            SELECT 1 FROM json_each(articles.tags) 
+            WHERE json_extract(value, '$.en') = '${enEscaped}' 
+               OR json_extract(value, '$.zh') = '${zhEscaped}'
+          )`)
         );
       } else if (enTrimmed) {
+        const enEscaped = enTrimmed.replace(/'/g, "''");
         tagConditions.push(
-          sql`EXISTS (
-            SELECT 1 FROM json_each(${articles.tags}) 
-            WHERE json_extract(value, '$.en') = ${enTrimmed}
-          )`
+          sql.raw(`articles.tags IS NOT NULL AND EXISTS (
+            SELECT 1 FROM json_each(articles.tags) 
+            WHERE json_extract(value, '$.en') = '${enEscaped}'
+          )`)
         );
       } else if (zhTrimmed) {
+        const zhEscaped = zhTrimmed.replace(/'/g, "''");
         tagConditions.push(
-          sql`EXISTS (
-            SELECT 1 FROM json_each(${articles.tags}) 
-            WHERE json_extract(value, '$.zh') = ${zhTrimmed}
-          )`
+          sql.raw(`articles.tags IS NOT NULL AND EXISTS (
+            SELECT 1 FROM json_each(articles.tags) 
+            WHERE json_extract(value, '$.zh') = '${zhEscaped}'
+          )`)
         );
       }
     }
@@ -164,26 +169,30 @@ export async function getNews(
     const zhTrimmed = zh?.trim();
     
     if (enTrimmed && zhTrimmed) {
+      const enEscaped = enTrimmed.replace(/'/g, "''");
+      const zhEscaped = zhTrimmed.replace(/'/g, "''");
       conditions.push(
-        sql`EXISTS (
-          SELECT 1 FROM json_each(${articles.tags}) 
-          WHERE json_extract(value, '$.en') = ${enTrimmed} 
-             OR json_extract(value, '$.zh') = ${zhTrimmed}
-        )`
+        sql.raw(`articles.tags IS NOT NULL AND EXISTS (
+          SELECT 1 FROM json_each(articles.tags) 
+          WHERE json_extract(value, '$.en') = '${enEscaped}' 
+             OR json_extract(value, '$.zh') = '${zhEscaped}'
+        )`)
       );
     } else if (enTrimmed) {
+      const enEscaped = enTrimmed.replace(/'/g, "''");
       conditions.push(
-        sql`EXISTS (
-          SELECT 1 FROM json_each(${articles.tags}) 
-          WHERE json_extract(value, '$.en') = ${enTrimmed}
-        )`
+        sql.raw(`articles.tags IS NOT NULL AND EXISTS (
+          SELECT 1 FROM json_each(articles.tags) 
+          WHERE json_extract(value, '$.en') = '${enEscaped}'
+        )`)
       );
     } else if (zhTrimmed) {
+      const zhEscaped = zhTrimmed.replace(/'/g, "''");
       conditions.push(
-        sql`EXISTS (
-          SELECT 1 FROM json_each(${articles.tags}) 
-          WHERE json_extract(value, '$.zh') = ${zhTrimmed}
-        )`
+        sql.raw(`articles.tags IS NOT NULL AND EXISTS (
+          SELECT 1 FROM json_each(articles.tags) 
+          WHERE json_extract(value, '$.zh') = '${zhEscaped}'
+        )`)
       );
     }
   }

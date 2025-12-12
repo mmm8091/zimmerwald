@@ -14,7 +14,7 @@ export const filterStore = reactive({
       platform: this.selectedPlatform || undefined,
       category: this.selectedCategory || undefined,
       tags: this.selectedTags.length > 0 ? this.selectedTags.join(',') : undefined, // 多个标签用逗号分隔
-      days: this.days === 0 ? undefined : this.days, // 0 表示全部，不传 days 参数
+      days: this.days, // 始终传递 days，0 表示全部
       limit: 200,
     };
   },
