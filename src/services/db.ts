@@ -110,56 +110,42 @@ export async function getNews(
   }
 
   // 支持多标签筛选（OR 逻辑）
+  // 使用 SQLite JSON 函数进行精确匹配
   if (options.tags && options.tags.length > 0) {
     // 使用 OR 逻辑：文章包含任意一个标签即可
     const tagConditions: any[] = [];
     for (const tag of options.tags) {
       if (!tag || !tag.trim()) continue;
-      // 标签格式是 "en|zh"，需要匹配 JSON 中的 en 或 zh 字段
+      // 标签格式是 "en|zh"，需要匹配 JSON 数组中的 en 或 zh 字段
       const [en, zh] = tag.split('|');
       const enTrimmed = en?.trim();
       const zhTrimmed = zh?.trim();
       
-      // 转义特殊字符用于 LIKE 查询
-      const escapeLike = (str: string) => str.replace(/[%_]/g, '\\$&');
-      
-      // 构建匹配条件：匹配 JSON 中的 en 或 zh
+      // 使用 SQLite JSON 函数：检查 JSON 数组中是否有匹配的标签
+      // json_each 展开 JSON 数组，然后检查每个元素的 en 或 zh 字段
       if (enTrimmed && zhTrimmed) {
-        // 同时匹配 en 和 zh（任一匹配即可）
-        // 匹配格式：{"en":"xxx","zh":"yyy"} 或 {"en": "xxx", "zh": "yyy"}
-        const enEscaped = escapeLike(enTrimmed);
-        const zhEscaped = escapeLike(zhTrimmed);
+        // 匹配 en 或 zh 任一即可
         tagConditions.push(
-          or(
-            like(articles.tags, `%"en":"${enEscaped}"%`),
-            like(articles.tags, `%"zh":"${zhEscaped}"%`),
-            like(articles.tags, `%"en": "${enEscaped}"%`),
-            like(articles.tags, `%"zh": "${zhEscaped}"%`),
-            like(articles.tags, `%"en":"${enEscaped}",%`),
-            like(articles.tags, `%"zh":"${zhEscaped}",%`)
-          )
+          sql`EXISTS (
+            SELECT 1 FROM json_each(${articles.tags}) 
+            WHERE json_extract(value, '$.en') = ${enTrimmed} 
+               OR json_extract(value, '$.zh') = ${zhTrimmed}
+          )`
         );
       } else if (enTrimmed) {
-        const enEscaped = escapeLike(enTrimmed);
         tagConditions.push(
-          or(
-            like(articles.tags, `%"en":"${enEscaped}"%`),
-            like(articles.tags, `%"en": "${enEscaped}"%`),
-            like(articles.tags, `%"en":"${enEscaped}",%`)
-          )
+          sql`EXISTS (
+            SELECT 1 FROM json_each(${articles.tags}) 
+            WHERE json_extract(value, '$.en') = ${enTrimmed}
+          )`
         );
       } else if (zhTrimmed) {
-        const zhEscaped = escapeLike(zhTrimmed);
         tagConditions.push(
-          or(
-            like(articles.tags, `%"zh":"${zhEscaped}"%`),
-            like(articles.tags, `%"zh": "${zhEscaped}"%`),
-            like(articles.tags, `%"zh":"${zhEscaped}",%`)
-          )
+          sql`EXISTS (
+            SELECT 1 FROM json_each(${articles.tags}) 
+            WHERE json_extract(value, '$.zh') = ${zhTrimmed}
+          )`
         );
-      } else {
-        // 兜底：直接匹配字符串
-        tagConditions.push(like(articles.tags, `%${escapeLike(tag.trim())}%`));
       }
     }
     
@@ -176,31 +162,29 @@ export async function getNews(
     const [en, zh] = options.tag.split('|');
     const enTrimmed = en?.trim();
     const zhTrimmed = zh?.trim();
-    const escapeLike = (str: string) => str.replace(/[%_]/g, '\\$&');
     
     if (enTrimmed && zhTrimmed) {
-      const enEscaped = escapeLike(enTrimmed);
-      const zhEscaped = escapeLike(zhTrimmed);
-      conditions.push(or(
-        like(articles.tags, `%"en":"${enEscaped}"%`),
-        like(articles.tags, `%"zh":"${zhEscaped}"%`),
-        like(articles.tags, `%"en": "${enEscaped}"%`),
-        like(articles.tags, `%"zh": "${zhEscaped}"%`)
-      ));
+      conditions.push(
+        sql`EXISTS (
+          SELECT 1 FROM json_each(${articles.tags}) 
+          WHERE json_extract(value, '$.en') = ${enTrimmed} 
+             OR json_extract(value, '$.zh') = ${zhTrimmed}
+        )`
+      );
     } else if (enTrimmed) {
-      const enEscaped = escapeLike(enTrimmed);
-      conditions.push(or(
-        like(articles.tags, `%"en":"${enEscaped}"%`),
-        like(articles.tags, `%"en": "${enEscaped}"%`)
-      ));
+      conditions.push(
+        sql`EXISTS (
+          SELECT 1 FROM json_each(${articles.tags}) 
+          WHERE json_extract(value, '$.en') = ${enTrimmed}
+        )`
+      );
     } else if (zhTrimmed) {
-      const zhEscaped = escapeLike(zhTrimmed);
-      conditions.push(or(
-        like(articles.tags, `%"zh":"${zhEscaped}"%`),
-        like(articles.tags, `%"zh": "${zhEscaped}"%`)
-      ));
-    } else {
-      conditions.push(like(articles.tags, `%${escapeLike(options.tag.trim())}%`));
+      conditions.push(
+        sql`EXISTS (
+          SELECT 1 FROM json_each(${articles.tags}) 
+          WHERE json_extract(value, '$.zh') = ${zhTrimmed}
+        )`
+      );
     }
   }
 
