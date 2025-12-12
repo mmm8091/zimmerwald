@@ -57,26 +57,28 @@ app.get('/', (c) => {
 app.get('/api/news', async (c) => {
   try {
     const minScoreParam = c.req.query('min_score');
-    const tagParam = c.req.query('tag');
+    const tagParam = c.req.query('tag'); // 兼容旧版本
+    const tagsParam = c.req.query('tags'); // 新版本：多个标签用逗号分隔
     const categoryParam = c.req.query('category');
     const platformParam = c.req.query('platform');
     const limitParam = c.req.query('limit');
     const daysParam = c.req.query('days');
 
     const minScore = minScoreParam ? parseInt(minScoreParam, 10) : undefined;
-    const tag = tagParam || undefined;
+    // 支持多标签：优先使用 tags 参数，否则使用 tag 参数（兼容旧版本）
+    const tags = tagsParam ? tagsParam.split(',').map(t => t.trim()).filter(t => t) : (tagParam ? [tagParam.trim()] : undefined);
     const category = categoryParam as 'Labor' | 'Politics' | 'Conflict' | 'Theory' | undefined;
     const platform = platformParam as 'News' | 'Twitter' | 'Telegram' | undefined;
     const limit = limitParam ? parseInt(limitParam, 10) : 30;
     const days = daysParam ? parseInt(daysParam, 10) : 30;
     const since = Number.isNaN(days) ? undefined : Date.now() - days * 24 * 60 * 60 * 1000;
 
-    console.log('[/api/news] 查询参数:', { minScore, tag, category, platform, limit, days });
+    console.log('[/api/news] 查询参数:', { minScore, tags, category, platform, limit, days });
 
     const [dbArticles, sourceNameMap] = await Promise.all([
       getNews(c.env.DB, {
       minScore: Number.isNaN(minScore as number) ? undefined : minScore,
-      tag,
+      tags,
       category,
       platform,
       limit: Number.isNaN(limit) ? 30 : limit,

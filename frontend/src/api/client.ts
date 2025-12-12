@@ -26,7 +26,8 @@ export async function getArticles(params: Record<string, any> = {}) {
   if (params.max_score !== undefined) searchParams.set('max_score', String(params.max_score));
   if (params.platform) searchParams.set('platform', params.platform);
   if (params.category) searchParams.set('category', params.category);
-  if (params.tag) searchParams.set('tag', params.tag);
+  if (params.tag) searchParams.set('tag', params.tag); // 兼容旧版本
+  if (params.tags) searchParams.set('tags', params.tags); // 新版本：多个标签用逗号分隔
   if (params.limit) searchParams.set('limit', String(params.limit));
   if (params.days) searchParams.set('days', String(params.days));
   const query = searchParams.toString();

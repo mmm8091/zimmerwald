@@ -5,7 +5,7 @@ export const filterStore = reactive({
   scoreRange: [60, 100],
   selectedPlatform: null as string | null,
   selectedCategory: null as string | null,
-  selectedTag: '',
+  selectedTags: [] as string[], // 改为数组支持多选
   days: 30,
   get queryParams() {
     return {
@@ -13,7 +13,7 @@ export const filterStore = reactive({
       max_score: this.scoreRange[1],
       platform: this.selectedPlatform || undefined,
       category: this.selectedCategory || undefined,
-      tag: this.selectedTag || undefined,
+      tags: this.selectedTags.length > 0 ? this.selectedTags.join(',') : undefined, // 多个标签用逗号分隔
       days: this.days,
       limit: 200,
     };
@@ -27,14 +27,22 @@ export const filterStore = reactive({
   setCategory(category: string | null) {
     this.selectedCategory = category;
   },
-  setTag(tag: string) {
-    this.selectedTag = tag;
+  toggleTag(tag: string) {
+    const index = this.selectedTags.indexOf(tag);
+    if (index > -1) {
+      this.selectedTags.splice(index, 1);
+    } else {
+      this.selectedTags.push(tag);
+    }
+  },
+  clearTags() {
+    this.selectedTags = [];
   },
   resetFilters() {
     this.scoreRange = [60, 100];
     this.selectedPlatform = null;
     this.selectedCategory = null;
-    this.selectedTag = '';
+    this.selectedTags = [];
     this.days = 30;
   },
 });

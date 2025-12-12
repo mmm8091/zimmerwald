@@ -2,7 +2,7 @@
 // 封装所有数据库操作，使用 Drizzle 查询构建器
 
 import { drizzle } from 'drizzle-orm/d1';
-import { and, gte, like, sql, desc, eq, isNotNull } from 'drizzle-orm';
+import { and, gte, like, sql, desc, eq, isNotNull, or } from 'drizzle-orm';
 import { articles, sources, type Article, type NewArticle, type Source } from '../db/schema';
 import type { LLMTag, PlatformType } from './types';
 
@@ -84,7 +84,8 @@ export async function getNews(
   db: D1Database,
   options: {
     minScore?: number;
-    tag?: string;
+    tag?: string; // 兼容旧版本
+    tags?: string[]; // 新版本：多个标签（OR 逻辑）
     category?: 'Labor' | 'Politics' | 'Conflict' | 'Theory';
     platform?: 'News' | 'Twitter' | 'Telegram';
     limit?: number;
@@ -108,8 +109,81 @@ export async function getNews(
     conditions.push(eq(articles.platform, options.platform));
   }
 
-  if (options.tag && options.tag.trim().length > 0) {
-    conditions.push(like(articles.tags, `%${options.tag.trim()}%`));
+  // 支持多标签筛选（OR 逻辑）
+  if (options.tags && options.tags.length > 0) {
+    // 使用 OR 逻辑：文章包含任意一个标签即可
+    const tagConditions: any[] = [];
+    for (const tag of options.tags) {
+      if (!tag || !tag.trim()) continue;
+      // 标签格式是 "en|zh"，需要匹配 JSON 中的 en 或 zh 字段
+      const [en, zh] = tag.split('|');
+      const enTrimmed = en?.trim();
+      const zhTrimmed = zh?.trim();
+      
+      // 构建匹配条件：匹配 JSON 中的 en 或 zh
+      if (enTrimmed && zhTrimmed) {
+        // 同时匹配 en 和 zh（任一匹配即可）
+        tagConditions.push(
+          or(
+            like(articles.tags, `%"en":"${enTrimmed}"%`),
+            like(articles.tags, `%"zh":"${zhTrimmed}"%`),
+            like(articles.tags, `%"en": "${enTrimmed}"%`),
+            like(articles.tags, `%"zh": "${zhTrimmed}"%`)
+          )
+        );
+      } else if (enTrimmed) {
+        tagConditions.push(
+          or(
+            like(articles.tags, `%"en":"${enTrimmed}"%`),
+            like(articles.tags, `%"en": "${enTrimmed}"%`)
+          )
+        );
+      } else if (zhTrimmed) {
+        tagConditions.push(
+          or(
+            like(articles.tags, `%"zh":"${zhTrimmed}"%`),
+            like(articles.tags, `%"zh": "${zhTrimmed}"%`)
+          )
+        );
+      } else {
+        // 兜底：直接匹配字符串
+        tagConditions.push(like(articles.tags, `%${tag.trim()}%`));
+      }
+    }
+    
+    if (tagConditions.length > 0) {
+      // 多个标签之间是 OR 关系
+      if (tagConditions.length === 1) {
+        conditions.push(tagConditions[0]);
+      } else {
+        conditions.push(or(...tagConditions));
+      }
+    }
+  } else if (options.tag && options.tag.trim().length > 0) {
+    // 兼容旧版本：单个标签
+    const [en, zh] = options.tag.split('|');
+    const enTrimmed = en?.trim();
+    const zhTrimmed = zh?.trim();
+    if (enTrimmed && zhTrimmed) {
+      conditions.push(or(
+        like(articles.tags, `%"en":"${enTrimmed}"%`),
+        like(articles.tags, `%"zh":"${zhTrimmed}"%`),
+        like(articles.tags, `%"en": "${enTrimmed}"%`),
+        like(articles.tags, `%"zh": "${zhTrimmed}"%`)
+      ));
+    } else if (enTrimmed) {
+      conditions.push(or(
+        like(articles.tags, `%"en":"${enTrimmed}"%`),
+        like(articles.tags, `%"en": "${enTrimmed}"%`)
+      ));
+    } else if (zhTrimmed) {
+      conditions.push(or(
+        like(articles.tags, `%"zh":"${zhTrimmed}"%`),
+        like(articles.tags, `%"zh": "${zhTrimmed}"%`)
+      ));
+    } else {
+      conditions.push(like(articles.tags, `%${options.tag.trim()}%`));
+    }
   }
 
   if (options.since) {

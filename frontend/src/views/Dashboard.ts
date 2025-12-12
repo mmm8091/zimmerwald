@@ -12,9 +12,22 @@ import { uiStore } from '../stores/uiStore';
 
 export const Dashboard = {
   setup() {
+    // 用于标签云的文章数据（不包括标签筛选）
+    const tagCloudParams = computed(() => {
+      const params = { ...filterStore.queryParams };
+      delete params.tags; // 标签云不包含标签筛选
+      return params;
+    });
+    
     const { data: articlesData, isLoading, isError, refetch } = useQuery({
       queryKey: computed(() => ['articles', filterStore.queryParams]),
       queryFn: () => getArticles(filterStore.queryParams),
+    });
+    
+    // 用于标签云的数据（基于当前筛选，但不包括标签筛选）
+    const { data: tagCloudData } = useQuery({
+      queryKey: computed(() => ['articles-for-tags', tagCloudParams.value]),
+      queryFn: () => getArticles(tagCloudParams.value),
     });
 
     watch(() => filterStore.queryParams, () => {
@@ -153,14 +166,15 @@ export const Dashboard = {
                 ]),
               ],
             }),
-            // 标签云（热门地理 + 其他）
-            articlesData.value && Array.isArray(articlesData.value) && (articlesData.value as any[]).length > 0 && h(Card, { padding: 'md' }, {
+            // 标签云（热门地理 + 其他）- 始终显示，基于当前筛选（不包括标签筛选）
+            h(Card, { padding: 'md' }, {
               default: () => {
-                // 统计所有标签
+                // 统计所有标签（基于 tagCloudData，不包括标签筛选）
                 const allTags = computed(() => {
                   const tagMap = new Map<string, { en: string; zh: string; count: number }>();
-                  if (!articlesData.value || !Array.isArray(articlesData.value)) return [];
-                  const articles = articlesData.value as any[];
+                  const dataSource = tagCloudData.value || articlesData.value;
+                  if (!dataSource || !Array.isArray(dataSource)) return [];
+                  const articles = dataSource as any[];
                   articles.forEach((article: any) => {
                     if (article.tags && Array.isArray(article.tags)) {
                       article.tags.forEach((tag: any) => {
@@ -212,7 +226,7 @@ export const Dashboard = {
                     .slice(0, 20)
                 );
                 
-                const isSelected = (key: string) => filterStore.selectedTag === key;
+                const isSelected = (key: string) => filterStore.selectedTags.includes(key);
                 const renderTagButton = (tag: any) =>
                   h('button', {
                     key: tag.key,
@@ -222,7 +236,7 @@ export const Dashboard = {
                         ? 'bg-zinc-100 text-zinc-900 border-zinc-100'
                         : 'bg-zinc-800 text-zinc-200 border-zinc-700 hover:border-zinc-500',
                     ],
-                    onClick: () => { filterStore.selectedTag = isSelected(tag.key) ? '' : tag.key; },
+                    onClick: () => { filterStore.toggleTag(tag.key); },
                   }, (uiStore.lang === 'zh' ? (tag.zh || tag.en) : (tag.en || tag.zh)) + ' (' + tag.count + ')');
                 
                 return [
@@ -232,7 +246,7 @@ export const Dashboard = {
                     h(Button, {
                       variant: 'ghost',
                       size: 'sm',
-                      onClick: () => { filterStore.selectedTag = ''; },
+                      onClick: () => { filterStore.clearTags(); },
                     }, () => uiStore.lang === 'zh' ? '清除' : 'Clear'),
                   ]),
                   h('div', { class: 'space-y-3' }, [
@@ -253,7 +267,7 @@ export const Dashboard = {
           ]),
           h('div', { class: 'lg:col-span-3 space-y-4' }, [
             // Active Filters
-            ...((filterStore.selectedPlatform !== null || filterStore.selectedCategory !== null || !!filterStore.selectedTag) ? [h('div', {
+            ...((filterStore.selectedPlatform !== null || filterStore.selectedCategory !== null || filterStore.selectedTags.length > 0) ? [h('div', {
               class: 'flex flex-wrap gap-2',
             }, [
               filterStore.selectedPlatform && h(Badge, { variant: 'default' }, () => {
@@ -264,12 +278,15 @@ export const Dashboard = {
                 const c = categories.find(cat => cat.value === filterStore.selectedCategory);
                 return c ? (uiStore.lang === 'zh' ? `分类: ${c.labelZh}` : `Category: ${c.labelEn}`) : '';
               }),
-              !!filterStore.selectedTag && h(Badge, { variant: 'default' }, () => {
-                const [en, zh] = filterStore.selectedTag.split('|');
+              ...filterStore.selectedTags.map((tagKey: string) => {
+                const [en, zh] = tagKey.split('|');
                 const label = uiStore.lang === 'zh' ? (zh || en) : (en || zh);
-                return uiStore.lang === 'zh'
-                  ? `标签: ${label || filterStore.selectedTag}`
-                  : `Tag: ${label || filterStore.selectedTag}`;
+                return h(Badge, { 
+                  key: tagKey,
+                  variant: 'default',
+                  onClick: () => filterStore.toggleTag(tagKey),
+                  class: 'cursor-pointer',
+                }, () => uiStore.lang === 'zh' ? `标签: ${label || tagKey}` : `Tag: ${label || tagKey}`);
               }),
               h(Button, {
                 variant: 'ghost',
