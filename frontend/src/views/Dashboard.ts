@@ -14,25 +14,36 @@ export const Dashboard = {
   setup() {
     // 用于标签云的文章数据：包含所有筛选条件（包括已选标签和分数范围）
     const tagCloudParams = computed(() => {
+      // 确保 computed 响应所有筛选条件的变化 - 显式访问所有属性
+      const platform = filterStore.selectedPlatform;
+      const category = filterStore.selectedCategory;
+      const tags = filterStore.selectedTags;
+      const search = filterStore.searchKeyword;
+      const days = filterStore.days;
+      const minScore = filterStore.scoreRange[0]; // 显式访问数组元素
+      const maxScore = filterStore.scoreRange[1]; // 显式访问数组元素
+      
       console.log('[Dashboard] tagCloudParams computed 执行，当前筛选条件:', {
-        platform: filterStore.selectedPlatform,
-        category: filterStore.selectedCategory,
-        tags: filterStore.selectedTags,
-        search: filterStore.searchKeyword,
-        days: filterStore.days,
-        scoreRange: filterStore.scoreRange,
+        platform,
+        category,
+        tags,
+        search,
+        days,
+        minScore,
+        maxScore,
+        scoreRange: filterStore.scoreRange, // 也访问整个数组，确保响应式追踪
       });
-      // 确保 computed 响应所有筛选条件的变化 - 直接访问 filterStore 属性
+      
       const params: Record<string, any> = {
-        days: filterStore.days,
-        min_score: filterStore.scoreRange[0],
-        max_score: filterStore.scoreRange[1],
+        days: days,
+        min_score: minScore,
+        max_score: maxScore,
         limit: 10000, // 标签云需要所有满足条件的文章
       };
-      if (filterStore.selectedPlatform) params.platform = filterStore.selectedPlatform;
-      if (filterStore.selectedCategory) params.category = filterStore.selectedCategory;
-      if (filterStore.selectedTags.length > 0) params.tags = filterStore.selectedTags.join(',');
-      if (filterStore.searchKeyword.trim()) params.search = filterStore.searchKeyword.trim();
+      if (platform) params.platform = platform;
+      if (category) params.category = category;
+      if (tags.length > 0) params.tags = tags.join(',');
+      if (search.trim()) params.search = search.trim();
       console.log('[Dashboard] tagCloudParams computed 返回值:', JSON.stringify(params));
       return params;
     });
@@ -191,12 +202,20 @@ export const Dashboard = {
       });
     };
     
-    // 用于标签云的数据（基于当前筛选，但不包括标签筛选）
+    // 用于标签云的数据（基于当前筛选，包括分数范围）
+    // 使用 tagCloudParams 作为 queryKey，确保响应所有筛选条件的变化
+    const tagCloudQueryKey = computed(() => {
+      const params = tagCloudParams.value;
+      // 使用 JSON.stringify 确保对象变化能被检测到
+      return ['articles-for-tags', JSON.stringify(params)];
+    });
+    
     const { data: tagCloudData } = useQuery({
-      queryKey: computed(() => ['articles-for-tags', tagCloudParams.value]),
+      queryKey: tagCloudQueryKey,
       queryFn: () => {
-        console.log('[Dashboard] 查询标签云数据，参数:', JSON.stringify(tagCloudParams.value, null, 2));
-        return getArticles(tagCloudParams.value);
+        const params = tagCloudParams.value;
+        console.log('[Dashboard] 查询标签云数据，参数:', JSON.stringify(params, null, 2));
+        return getArticles(params);
       },
     });
 
