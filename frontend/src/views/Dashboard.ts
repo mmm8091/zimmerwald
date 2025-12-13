@@ -23,7 +23,7 @@ export const Dashboard = {
       if (filterStore.selectedTags.length > 0) params.tags = filterStore.selectedTags.join(',');
       if (filterStore.searchKeyword.trim()) params.search = filterStore.searchKeyword.trim();
       // 注意：不包含 min_score 和 max_score，标签云不受分数范围影响
-      console.log('[Dashboard] tagCloudParams:', params);
+      console.log('[Dashboard] tagCloudParams:', JSON.stringify(params, null, 2));
       return params;
     });
 

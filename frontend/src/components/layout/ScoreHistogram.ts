@@ -15,6 +15,7 @@ export const ScoreHistogram = {
       if (filterStore.selectedCategory) params.category = filterStore.selectedCategory;
       if (filterStore.selectedTags.length > 0) params.tags = filterStore.selectedTags.join(',');
       if (filterStore.searchKeyword.trim()) params.search = filterStore.searchKeyword.trim();
+      console.log('[ScoreHistogram] histogramParams:', JSON.stringify(params, null, 2));
       return params;
     });
 
