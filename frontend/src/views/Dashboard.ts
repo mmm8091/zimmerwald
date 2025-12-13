@@ -82,7 +82,7 @@ export const Dashboard = {
     const { data: tagCloudData } = useQuery({
       queryKey: computed(() => ['articles-for-tags', tagCloudParams.value]),
       queryFn: () => {
-        console.log('[Dashboard] 查询标签云数据，参数:', tagCloudParams.value);
+        console.log('[Dashboard] 查询标签云数据，参数:', JSON.stringify(tagCloudParams.value, null, 2));
         return getArticles(tagCloudParams.value);
       },
     });
