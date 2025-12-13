@@ -1,5 +1,5 @@
 // Dashboard 视图组件
-import { h, computed, watch, ref } from 'vue';
+import { h, computed, watch, ref, nextTick } from 'vue';
 import { MainLayout } from '../components/layout/MainLayout';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -12,7 +12,7 @@ import { uiStore } from '../stores/uiStore';
 
 export const Dashboard = {
   setup() {
-    // 用于标签云的文章数据：包含所有筛选条件（包括已选标签），但排除分数范围
+    // 用于标签云的文章数据：包含所有筛选条件（包括已选标签和分数范围）
     const tagCloudParams = computed(() => {
       console.log('[Dashboard] tagCloudParams computed 执行，当前筛选条件:', {
         platform: filterStore.selectedPlatform,
@@ -20,17 +20,19 @@ export const Dashboard = {
         tags: filterStore.selectedTags,
         search: filterStore.searchKeyword,
         days: filterStore.days,
+        scoreRange: filterStore.scoreRange,
       });
       // 确保 computed 响应所有筛选条件的变化 - 直接访问 filterStore 属性
       const params: Record<string, any> = {
         days: filterStore.days,
+        min_score: filterStore.scoreRange[0],
+        max_score: filterStore.scoreRange[1],
         limit: 10000, // 标签云需要所有满足条件的文章
       };
       if (filterStore.selectedPlatform) params.platform = filterStore.selectedPlatform;
       if (filterStore.selectedCategory) params.category = filterStore.selectedCategory;
       if (filterStore.selectedTags.length > 0) params.tags = filterStore.selectedTags.join(',');
       if (filterStore.searchKeyword.trim()) params.search = filterStore.searchKeyword.trim();
-      // 注意：不包含 min_score 和 max_score，标签云不受分数范围影响
       console.log('[Dashboard] tagCloudParams computed 返回值:', JSON.stringify(params));
       return params;
     });
@@ -142,9 +144,12 @@ export const Dashboard = {
     const allArticles = computed(() => accumulatedArticles.value);
 
     // 检查是否还有更多文章
+    // 如果返回的文章数量等于 limit，说明可能还有更多
     const hasMore = computed(() => {
       if (!articlesData.value || !Array.isArray(articlesData.value)) return false;
-      return (articlesData.value as any[]).length === filterStore.queryParams.limit;
+      const currentPageData = articlesData.value as any[];
+      // 如果当前页返回的文章数量等于 limit，说明可能还有更多
+      return currentPageData.length === filterStore.queryParams.limit;
     });
 
     // 加载更多
@@ -153,13 +158,36 @@ export const Dashboard = {
         page: filterStore.page,
         offset: filterStore.queryParams.offset,
         queryParams: filterStore.queryParams,
+        accumulatedCount: accumulatedArticles.value.length,
       });
+      // 保存当前滚动位置（相对于文档底部）
+      const scrollBefore = window.scrollY;
+      const documentHeightBefore = document.documentElement.scrollHeight;
+      
       filterStore.nextPage();
+      
       console.log('[Dashboard] loadMore 调用后:', {
         page: filterStore.page,
         offset: filterStore.queryParams.offset,
         queryParams: filterStore.queryParams,
         queryKey: computed(() => ['articles', filterStore.queryParams]).value,
+      });
+      
+      // 等待 DOM 更新后恢复滚动位置
+      // 使用 nextTick 确保 Vue 完成渲染
+      nextTick(() => {
+        // 再次等待，确保文章列表已渲染
+        setTimeout(() => {
+          const documentHeightAfter = document.documentElement.scrollHeight;
+          const heightDiff = documentHeightAfter - documentHeightBefore;
+          // 滚动到新内容的位置（保持相对位置）
+          if (heightDiff > 0) {
+            window.scrollTo({
+              top: scrollBefore + heightDiff,
+              behavior: 'auto', // 不使用平滑滚动，避免用户感知到跳转
+            });
+          }
+        }, 50);
       });
     };
     

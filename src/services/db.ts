@@ -164,13 +164,13 @@ export async function getNews(
     
     if (tagConditions.length > 0) {
       console.log('[getNews] 标签条件数量:', tagConditions.length);
-      // 多个标签之间是 OR 关系
+      // 多个标签之间是 AND 关系：文章必须包含所有选中的标签
       if (tagConditions.length === 1) {
         conditions.push(tagConditions[0]);
       } else {
-        conditions.push(or(...tagConditions));
+        conditions.push(and(...tagConditions));
       }
-      console.log('[getNews] 已添加标签筛选条件');
+      console.log('[getNews] 已添加标签筛选条件（AND 逻辑）');
     } else {
       console.log('[getNews] 警告：没有有效的标签条件');
     }
