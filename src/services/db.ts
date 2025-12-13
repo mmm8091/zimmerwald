@@ -128,33 +128,28 @@ export async function getNews(
       console.log('[getNews] 处理标签:', { tag, enTrimmed, zhTrimmed });
       
       // 使用 SQLite JSON 函数：检查 JSON 数组中是否有匹配的标签
-      // 使用 sql.raw 来构建 SQL，因为 json_each 需要动态值
+      // 使用 sql 模板标签配合参数绑定
       if (enTrimmed && zhTrimmed) {
-        // 转义单引号防止 SQL 注入
-        const enEscaped = enTrimmed.replace(/'/g, "''");
-        const zhEscaped = zhTrimmed.replace(/'/g, "''");
-        const sqlCondition = sql.raw(`articles.tags IS NOT NULL AND EXISTS (
+        const sqlCondition = sql`articles.tags IS NOT NULL AND EXISTS (
           SELECT 1 FROM json_each(articles.tags) 
-          WHERE json_extract(value, '$.en') = '${enEscaped}' 
-             OR json_extract(value, '$.zh') = '${zhEscaped}'
-        )`);
-        console.log('[getNews] 生成 SQL 条件 (en+zh):', sqlCondition);
+          WHERE json_extract(value, '$.en') = ${enTrimmed} 
+             OR json_extract(value, '$.zh') = ${zhTrimmed}
+        )`;
+        console.log('[getNews] 生成 SQL 条件 (en+zh):', { en: enTrimmed, zh: zhTrimmed });
         tagConditions.push(sqlCondition);
       } else if (enTrimmed) {
-        const enEscaped = enTrimmed.replace(/'/g, "''");
-        const sqlCondition = sql.raw(`articles.tags IS NOT NULL AND EXISTS (
+        const sqlCondition = sql`articles.tags IS NOT NULL AND EXISTS (
           SELECT 1 FROM json_each(articles.tags) 
-          WHERE json_extract(value, '$.en') = '${enEscaped}'
-        )`);
-        console.log('[getNews] 生成 SQL 条件 (en only):', sqlCondition);
+          WHERE json_extract(value, '$.en') = ${enTrimmed}
+        )`;
+        console.log('[getNews] 生成 SQL 条件 (en only):', { en: enTrimmed });
         tagConditions.push(sqlCondition);
       } else if (zhTrimmed) {
-        const zhEscaped = zhTrimmed.replace(/'/g, "''");
-        const sqlCondition = sql.raw(`articles.tags IS NOT NULL AND EXISTS (
+        const sqlCondition = sql`articles.tags IS NOT NULL AND EXISTS (
           SELECT 1 FROM json_each(articles.tags) 
-          WHERE json_extract(value, '$.zh') = '${zhEscaped}'
-        )`);
-        console.log('[getNews] 生成 SQL 条件 (zh only):', sqlCondition);
+          WHERE json_extract(value, '$.zh') = ${zhTrimmed}
+        )`;
+        console.log('[getNews] 生成 SQL 条件 (zh only):', { zh: zhTrimmed });
         tagConditions.push(sqlCondition);
       }
     }
@@ -178,30 +173,26 @@ export async function getNews(
     const zhTrimmed = zh?.trim();
     
     if (enTrimmed && zhTrimmed) {
-      const enEscaped = enTrimmed.replace(/'/g, "''");
-      const zhEscaped = zhTrimmed.replace(/'/g, "''");
       conditions.push(
-        sql.raw(`articles.tags IS NOT NULL AND EXISTS (
+        sql`articles.tags IS NOT NULL AND EXISTS (
           SELECT 1 FROM json_each(articles.tags) 
-          WHERE json_extract(value, '$.en') = '${enEscaped}' 
-             OR json_extract(value, '$.zh') = '${zhEscaped}'
-        )`)
+          WHERE json_extract(value, '$.en') = ${enTrimmed} 
+             OR json_extract(value, '$.zh') = ${zhTrimmed}
+        )`
       );
     } else if (enTrimmed) {
-      const enEscaped = enTrimmed.replace(/'/g, "''");
       conditions.push(
-        sql.raw(`articles.tags IS NOT NULL AND EXISTS (
+        sql`articles.tags IS NOT NULL AND EXISTS (
           SELECT 1 FROM json_each(articles.tags) 
-          WHERE json_extract(value, '$.en') = '${enEscaped}'
-        )`)
+          WHERE json_extract(value, '$.en') = ${enTrimmed}
+        )`
       );
     } else if (zhTrimmed) {
-      const zhEscaped = zhTrimmed.replace(/'/g, "''");
       conditions.push(
-        sql.raw(`articles.tags IS NOT NULL AND EXISTS (
+        sql`articles.tags IS NOT NULL AND EXISTS (
           SELECT 1 FROM json_each(articles.tags) 
-          WHERE json_extract(value, '$.zh') = '${zhEscaped}'
-        )`)
+          WHERE json_extract(value, '$.zh') = ${zhTrimmed}
+        )`
       );
     }
   }
@@ -227,6 +218,10 @@ export async function getNews(
     since: options.since,
     limit: options.limit 
   });
+  
+  const sqlQuery = query.toSQL();
+  console.log('[getNews] 生成的 SQL:', sqlQuery.sql);
+  console.log('[getNews] SQL 参数:', sqlQuery.params);
   
   const result = await query.all();
   console.log('[getNews] 查询结果数量:', result.length);
