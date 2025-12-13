@@ -1,5 +1,7 @@
 // API 客户端
-const API_BASE = import.meta.env.VITE_API_BASE || '';
+// 生产环境使用 Worker URL，开发环境使用相对路径（通过 vite proxy）
+const API_BASE = import.meta.env.VITE_API_BASE || 
+  (import.meta.env.PROD ? 'https://zimmerwald.leelooloo8091.workers.dev' : '');
 
 export async function apiRequest(endpoint: string, options: RequestInit = {}) {
   const url = endpoint.startsWith('http') ? endpoint : API_BASE + endpoint;

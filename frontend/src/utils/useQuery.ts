@@ -1,5 +1,5 @@
 // 简单查询 Hook（替代 Vue Query）
-import { ref, watch, computed } from 'vue';
+import { ref, watch } from 'vue';
 
 export function useQuery({ queryKey, queryFn }: {
   queryKey?: any;
