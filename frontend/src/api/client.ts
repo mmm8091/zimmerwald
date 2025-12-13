@@ -31,7 +31,9 @@ export async function getArticles(params: Record<string, any> = {}) {
     console.log('[getArticles] 传递 tags 参数:', params.tags);
     searchParams.set('tags', params.tags); // 新版本：多个标签用逗号分隔
   }
+  if (params.search) searchParams.set('search', params.search);
   if (params.limit) searchParams.set('limit', String(params.limit));
+  if (params.offset !== undefined) searchParams.set('offset', String(params.offset));
   if (params.days !== undefined) searchParams.set('days', String(params.days)); // 包括 0（全部）
   const query = searchParams.toString();
   console.log('[getArticles] 最终 URL:', '/api/news' + (query ? '?' + query : ''));
@@ -48,7 +50,14 @@ export async function getLatestBriefing() {
   return apiRequest('/api/daily-briefings/latest');
 }
 
-export async function getScoreHistogram(days = 30) {
-  return apiRequest('/api/stats/histogram?days=' + days);
+export async function getScoreHistogram(params: Record<string, any> = {}) {
+  const searchParams = new URLSearchParams();
+  if (params.days !== undefined) searchParams.set('days', String(params.days));
+  if (params.platform) searchParams.set('platform', params.platform);
+  if (params.category) searchParams.set('category', params.category);
+  if (params.tags) searchParams.set('tags', params.tags);
+  if (params.search) searchParams.set('search', params.search);
+  const query = searchParams.toString();
+  return apiRequest('/api/stats/histogram' + (query ? '?' + query : ''));
 }
 

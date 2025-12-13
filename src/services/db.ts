@@ -84,21 +84,26 @@ export async function getNews(
   db: D1Database,
   options: {
     minScore?: number;
+    maxScore?: number;
     tag?: string; // 兼容旧版本
     tags?: string[]; // 新版本：多个标签（OR 逻辑）
     category?: 'Labor' | 'Politics' | 'Conflict' | 'Theory';
     platform?: 'News' | 'Twitter' | 'Telegram';
     limit?: number;
+    offset?: number;
     since?: number;
+    search?: string;
   }
 ): Promise<Article[]> {
   const d = getDb(db);
   const conditions = [];
 
-  if (typeof options.minScore === 'number') {
-    if (options.minScore > 0) {
-      conditions.push(and(isNotNull(articles.score), gte(articles.score, options.minScore)));
-    }
+  // 分数范围筛选
+  if (typeof options.minScore === 'number' && options.minScore > 0) {
+    conditions.push(and(isNotNull(articles.score), gte(articles.score, options.minScore)));
+  }
+  if (typeof options.maxScore === 'number' && options.maxScore < 100) {
+    conditions.push(and(isNotNull(articles.score), sql`${articles.score} <= ${options.maxScore}`));
   }
 
   if (options.category) {
@@ -202,21 +207,54 @@ export async function getNews(
     conditions.push(gte(articles.createdAt, options.since));
   }
 
-  const query = d
+  // 搜索功能：在标题、摘要、标签、信源名称中搜索
+  if (options.search && options.search.trim()) {
+    const searchTerm = `%${options.search.trim()}%`;
+    // 使用 OR 连接多个字段的搜索条件
+    const searchConditions = [
+      like(articles.titleEn, searchTerm),
+      like(articles.titleZh, searchTerm),
+      like(articles.summaryEn, searchTerm),
+      like(articles.summaryZh, searchTerm),
+      // 标签搜索：使用 JSON 函数检查 tags 字段
+      sql`articles.tags IS NOT NULL AND EXISTS (
+        SELECT 1 FROM json_each(articles.tags) 
+        WHERE json_extract(value, '$.en') LIKE ${searchTerm} 
+           OR json_extract(value, '$.zh') LIKE ${searchTerm}
+      )`,
+      // 信源名称搜索：需要通过 JOIN sources 表
+      sql`EXISTS (
+        SELECT 1 FROM sources 
+        WHERE sources.slug = articles.source_id 
+          AND sources.name LIKE ${searchTerm}
+      )`,
+    ];
+    conditions.push(or(...searchConditions));
+    console.log('[getNews] 添加搜索条件:', options.search);
+  }
+
+  let query = d
     .select()
     .from(articles)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(articles.score), desc(articles.publishedAt), desc(articles.createdAt))
-    .limit(options.limit ?? 30);
+    .orderBy(desc(articles.score), desc(articles.publishedAt), desc(articles.createdAt));
+
+  // 分页支持
+  const limit = options.limit ?? 10;
+  const offset = options.offset ?? 0;
+  query = query.limit(limit).offset(offset);
 
   console.log('[getNews] 查询条件数量:', conditions.length);
   console.log('[getNews] 查询参数:', { 
-    minScore: options.minScore, 
+    minScore: options.minScore,
+    maxScore: options.maxScore,
     tags: options.tags, 
     category: options.category, 
     platform: options.platform, 
     since: options.since,
-    limit: options.limit 
+    search: options.search,
+    limit: options.limit,
+    offset: options.offset,
   });
   
   const sqlQuery = query.toSQL();

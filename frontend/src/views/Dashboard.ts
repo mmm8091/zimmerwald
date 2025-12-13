@@ -1,5 +1,5 @@
 // Dashboard 视图组件
-import { h, computed, watch } from 'vue';
+import { h, computed, watch, ref } from 'vue';
 import { MainLayout } from '../components/layout/MainLayout';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -12,17 +12,21 @@ import { uiStore } from '../stores/uiStore';
 
 export const Dashboard = {
   setup() {
-    // 用于标签云的文章数据（不包括标签筛选，且不受 limit 限制）
+    // 用于标签云的文章数据：包含所有筛选条件（包括已选标签），但排除分数范围
     const tagCloudParams = computed(() => {
-      const params: Record<string, any> = { ...filterStore.queryParams };
-      delete params.tags; // 标签云不包含标签筛选
-      delete params.limit; // 标签云需要所有满足条件的文章，不受 limit 限制
-      // 设置一个很大的 limit 值，确保获取所有文章用于标签云统计
-      params.limit = 10000;
+      const params: Record<string, any> = {
+        days: filterStore.days,
+        limit: 10000, // 标签云需要所有满足条件的文章
+      };
+      if (filterStore.selectedPlatform) params.platform = filterStore.selectedPlatform;
+      if (filterStore.selectedCategory) params.category = filterStore.selectedCategory;
+      if (filterStore.selectedTags.length > 0) params.tags = filterStore.selectedTags.join(',');
+      if (filterStore.searchKeyword.trim()) params.search = filterStore.searchKeyword.trim();
+      // 注意：不包含 min_score 和 max_score，标签云不受分数范围影响
       console.log('[Dashboard] tagCloudParams:', params);
       return params;
     });
-    
+
     const { data: articlesData, isLoading, isError, refetch } = useQuery({
       queryKey: computed(() => ['articles', filterStore.queryParams]),
       queryFn: () => {
@@ -30,6 +34,49 @@ export const Dashboard = {
         return getArticles(filterStore.queryParams);
       },
     });
+
+    // 累积的文章列表（用于分页）
+    const accumulatedArticles = ref<any[]>([]);
+
+    // 当筛选条件改变时，重置累积列表
+    watch(() => [
+      filterStore.days,
+      filterStore.selectedPlatform,
+      filterStore.selectedCategory,
+      filterStore.selectedTags.join(','),
+      filterStore.searchKeyword,
+      filterStore.scoreRange[0],
+      filterStore.scoreRange[1],
+    ], () => {
+      accumulatedArticles.value = [];
+      filterStore.resetPage();
+    }, { deep: true });
+
+    // 当新数据到达时，累积文章（如果是第一页则替换，否则追加）
+    watch(() => articlesData.value, (newData) => {
+      if (!newData || !Array.isArray(newData)) {
+        accumulatedArticles.value = [];
+        return;
+      }
+      if (filterStore.page === 1) {
+        accumulatedArticles.value = [...(newData as any[])];
+      } else {
+        accumulatedArticles.value = [...accumulatedArticles.value, ...(newData as any[])];
+      }
+    }, { immediate: true });
+
+    const allArticles = computed(() => accumulatedArticles.value);
+
+    // 检查是否还有更多文章
+    const hasMore = computed(() => {
+      if (!articlesData.value || !Array.isArray(articlesData.value)) return false;
+      return (articlesData.value as any[]).length === filterStore.queryParams.limit;
+    });
+
+    // 加载更多
+    const loadMore = () => {
+      filterStore.nextPage();
+    };
     
     // 用于标签云的数据（基于当前筛选，但不包括标签筛选）
     const { data: tagCloudData } = useQuery({
@@ -75,13 +122,42 @@ export const Dashboard = {
                 h('select', {
                   class: 'w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-600',
                   value: filterStore.days,
-                  onChange: (e: any) => { filterStore.days = parseInt(e.target.value); },
+                  onChange: (e: any) => { filterStore.setDays(parseInt(e.target.value)); },
                 }, [
                   h('option', { value: 1 }, uiStore.lang === 'zh' ? '24小时内' : '24 hours'),
                   h('option', { value: 7 }, uiStore.lang === 'zh' ? '7天内' : '7 days'),
                   h('option', { value: 30 }, uiStore.lang === 'zh' ? '30天内' : '30 days'),
                   h('option', { value: 90 }, uiStore.lang === 'zh' ? '90天内' : '90 days'),
                   h('option', { value: 0 }, uiStore.lang === 'zh' ? '全部' : 'All'),
+                ]),
+              ],
+            }),
+            // Search Filter - 搜索功能
+            h(Card, { padding: 'md' }, {
+              default: () => [
+                h('h2', { class: 'text-lg font-semibold text-zinc-100 mb-4' },
+                  uiStore.lang === 'zh' ? '搜索' : 'Search'),
+                h('div', { class: 'relative' }, [
+                  h('input', {
+                    type: 'text',
+                    placeholder: uiStore.lang === 'zh' ? '搜索标题、摘要、标签、信源...' : 'Search titles, summaries, tags, sources...',
+                    class: 'w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-600',
+                    value: filterStore.searchKeyword,
+                    onInput: (e: any) => { filterStore.setSearchKeyword(e.target.value); },
+                    onKeydown: (e: KeyboardEvent) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        // 搜索已通过 onInput 触发，这里可以添加额外逻辑
+                      }
+                    },
+                  }),
+                  ...(filterStore.searchKeyword.trim() ? [
+                    h('button', {
+                      class: 'absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200 transition-colors',
+                      onClick: () => { filterStore.setSearchKeyword(''); },
+                      title: uiStore.lang === 'zh' ? '清除搜索' : 'Clear search',
+                    }, '×'),
+                  ] : []),
                 ]),
               ],
             }),
@@ -315,8 +391,9 @@ export const Dashboard = {
                 uiStore.lang === 'zh' ? '加载失败' : 'Failed to load'),
               h(Button, { onClick: refetch }, () => uiStore.lang === 'zh' ? '重试' : 'Retry'),
             ])
-            : articlesData.value && Array.isArray(articlesData.value) && (articlesData.value as any[]).length > 0
-              ? h('div', { class: 'space-y-4' }, (articlesData.value as any[]).map((article: any) => {
+            : allArticles.value.length > 0
+              ? h('div', { class: 'space-y-4' }, [
+                  ...allArticles.value.map((article: any) => {
                 const getBorderClass = (score: number | null) => {
                   if (score === null) return 'border-l-2 border-l-zinc-800';
                   if (score >= 90) return 'border-l-4 border-l-rose-600';
@@ -404,7 +481,20 @@ export const Dashboard = {
                     }, uiStore.lang === 'zh' ? '阅读原文 →' : 'Read Original →'),
                   ]),
                 ]);
-              }))
+                  }),
+                  // 加载更多按钮
+                  ...(hasMore.value ? [
+                    h('div', { class: 'flex justify-center pt-4' }, [
+                      h(Button, {
+                        onClick: loadMore,
+                        disabled: isLoading.value,
+                        variant: 'default',
+                      }, () => isLoading.value 
+                        ? (uiStore.lang === 'zh' ? '加载中...' : 'Loading...')
+                        : (uiStore.lang === 'zh' ? '加载更多' : 'Load More')),
+                    ]),
+                  ] : []),
+                ])
               : h('div', { class: 'text-center py-12 text-zinc-400' },
                 uiStore.lang === 'zh' ? '暂无文章' : 'No articles found'),
           ]),

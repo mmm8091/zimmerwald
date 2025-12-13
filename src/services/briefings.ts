@@ -322,9 +322,97 @@ export async function getLatestBriefing(db: D1Database): Promise<DailyBriefing |
 /**
  * 获取分数分布直方图数据
  */
-export async function getScoreHistogram(db: D1Database, days: number = 30): Promise<Array<{ bucket: number; count: number }>> {
-  const d = getDb(db);
-  const since = Date.now() - days * 24 * 60 * 60 * 1000;
+export async function getScoreHistogram(
+  db: D1Database,
+  options: {
+    days?: number;
+    platform?: 'News' | 'Twitter' | 'Telegram';
+    category?: 'Labor' | 'Politics' | 'Conflict' | 'Theory';
+    tags?: string[];
+    search?: string;
+  } = {}
+): Promise<Array<{ bucket: number; count: number }>> {
+  const days = options.days ?? 30;
+  const since = (days === 0) ? undefined : Date.now() - days * 24 * 60 * 60 * 1000;
+
+  // 构建 WHERE 条件
+  const whereConditions: string[] = [];
+  const bindValues: any[] = [];
+
+  // 时间筛选
+  if (since) {
+    whereConditions.push('created_at >= ?');
+    bindValues.push(since);
+  }
+
+  // 平台筛选
+  if (options.platform) {
+    whereConditions.push('platform = ?');
+    bindValues.push(options.platform);
+  }
+
+  // 分类筛选
+  if (options.category) {
+    whereConditions.push('category = ?');
+    bindValues.push(options.category);
+  }
+
+  // 标签筛选
+  if (options.tags && options.tags.length > 0) {
+    const tagConditions: string[] = [];
+    for (const tag of options.tags) {
+      if (!tag || !tag.trim()) continue;
+      const [en, zh] = tag.split('|');
+      const enTrimmed = en?.trim();
+      const zhTrimmed = zh?.trim();
+      
+      if (enTrimmed && zhTrimmed) {
+        tagConditions.push(`(tags IS NOT NULL AND EXISTS (
+          SELECT 1 FROM json_each(tags) 
+          WHERE json_extract(value, '$.en') = ? 
+             OR json_extract(value, '$.zh') = ?
+        ))`);
+        bindValues.push(enTrimmed, zhTrimmed);
+      } else if (enTrimmed) {
+        tagConditions.push(`(tags IS NOT NULL AND EXISTS (
+          SELECT 1 FROM json_each(tags) 
+          WHERE json_extract(value, '$.en') = ?
+        ))`);
+        bindValues.push(enTrimmed);
+      } else if (zhTrimmed) {
+        tagConditions.push(`(tags IS NOT NULL AND EXISTS (
+          SELECT 1 FROM json_each(tags) 
+          WHERE json_extract(value, '$.zh') = ?
+        ))`);
+        bindValues.push(zhTrimmed);
+      }
+    }
+    if (tagConditions.length > 0) {
+      whereConditions.push(`(${tagConditions.join(' OR ')})`);
+    }
+  }
+
+  // 搜索筛选
+  if (options.search && options.search.trim()) {
+    const searchTerm = `%${options.search.trim()}%`;
+    whereConditions.push(`(
+      title_en LIKE ? OR title_zh LIKE ? OR 
+      summary_en LIKE ? OR summary_zh LIKE ? OR
+      (tags IS NOT NULL AND EXISTS (
+        SELECT 1 FROM json_each(tags) 
+        WHERE json_extract(value, '$.en') LIKE ? 
+           OR json_extract(value, '$.zh') LIKE ?
+      )) OR
+      EXISTS (
+        SELECT 1 FROM sources 
+        WHERE sources.slug = articles.source_id 
+          AND sources.name LIKE ?
+      )
+    )`);
+    bindValues.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+  }
+
+  const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
   // 使用 D1 原生 API 执行复杂查询
   const stmt = db.prepare(`
@@ -344,12 +432,12 @@ export async function getScoreHistogram(db: D1Database, days: number = 30): Prom
       END as bucket,
       COUNT(*) as count
     FROM articles
-    WHERE created_at >= ?
+    ${whereClause}
     GROUP BY bucket
     ORDER BY bucket;
   `);
 
-  const result = await stmt.bind(since).all();
+  const result = await stmt.bind(...bindValues).all();
   const rows = result.results || [];
 
   // 确保所有 bucket 都存在（0-90，步长 10）

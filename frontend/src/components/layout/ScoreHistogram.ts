@@ -6,9 +6,21 @@ import { filterStore } from '../../stores/filterStore';
 
 export const ScoreHistogram = {
   setup() {
+    // 直方图参数：包含所有筛选条件，但排除分数范围
+    const histogramParams = computed(() => {
+      const params: Record<string, any> = {
+        days: filterStore.days,
+      };
+      if (filterStore.selectedPlatform) params.platform = filterStore.selectedPlatform;
+      if (filterStore.selectedCategory) params.category = filterStore.selectedCategory;
+      if (filterStore.selectedTags.length > 0) params.tags = filterStore.selectedTags.join(',');
+      if (filterStore.searchKeyword.trim()) params.search = filterStore.searchKeyword.trim();
+      return params;
+    });
+
     const { data: histogramData } = useQuery({
-      queryKey: ['histogram'],
-      queryFn: () => getScoreHistogram(filterStore.days),
+      queryKey: computed(() => ['histogram', histogramParams.value]),
+      queryFn: () => getScoreHistogram(histogramParams.value),
     });
     
     const histogram = computed(() => {
@@ -32,8 +44,11 @@ export const ScoreHistogram = {
         h('div', {
           key: idx,
           class: [
-            'flex-1 bg-zinc-700 rounded-t transition-all',
-            isInRange(bucket.bucket) && 'bg-zinc-500',
+            'flex-1 rounded-t transition-all',
+            // 背景直方图：所有柱状图都显示（完整分布）
+            isInRange(bucket.bucket) 
+              ? 'bg-zinc-500' // 当前分数范围内的柱状图高亮
+              : 'bg-zinc-700', // 其他柱状图作为背景
           ],
           style: { height: `${getHeight(bucket.count)}%` },
           title: `${bucket.bucket}-${bucket.bucket + 9}: ${bucket.count}`,

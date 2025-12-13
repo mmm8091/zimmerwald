@@ -57,36 +57,45 @@ app.get('/', (c) => {
 app.get('/api/news', async (c) => {
   try {
     const minScoreParam = c.req.query('min_score');
+    const maxScoreParam = c.req.query('max_score');
     const tagParam = c.req.query('tag'); // 兼容旧版本
     const tagsParam = c.req.query('tags'); // 新版本：多个标签用逗号分隔
     const categoryParam = c.req.query('category');
     const platformParam = c.req.query('platform');
     const limitParam = c.req.query('limit');
+    const offsetParam = c.req.query('offset');
     const daysParam = c.req.query('days');
+    const searchParam = c.req.query('search');
 
     const minScore = minScoreParam ? parseInt(minScoreParam, 10) : undefined;
+    const maxScore = maxScoreParam ? parseInt(maxScoreParam, 10) : undefined;
     // 支持多标签：优先使用 tags 参数，否则使用 tag 参数（兼容旧版本）
     const tags = tagsParam ? tagsParam.split(',').map(t => t.trim()).filter(t => t) : (tagParam ? [tagParam.trim()] : undefined);
     console.log('[/api/news] 原始 tagsParam:', tagsParam);
     console.log('[/api/news] 解析后的 tags 数组:', tags);
     const category = categoryParam as 'Labor' | 'Politics' | 'Conflict' | 'Theory' | undefined;
     const platform = platformParam as 'News' | 'Twitter' | 'Telegram' | undefined;
-    const limit = limitParam ? parseInt(limitParam, 10) : 30;
+    const limit = limitParam ? parseInt(limitParam, 10) : 10;
+    const offset = offsetParam ? parseInt(offsetParam, 10) : 0;
     const days = daysParam ? parseInt(daysParam, 10) : 30;
+    const search = searchParam?.trim() || undefined;
     // days 为 0 表示全部，不限制时间
     const since = (Number.isNaN(days) || days === 0) ? undefined : Date.now() - days * 24 * 60 * 60 * 1000;
 
-    console.log('[/api/news] 查询参数:', { minScore, tags, category, platform, limit, days, since });
+    console.log('[/api/news] 查询参数:', { minScore, maxScore, tags, category, platform, limit, offset, days, since, search });
     console.log('[/api/news] tags 参数详情:', JSON.stringify(tags));
 
     const [dbArticles, sourceNameMap] = await Promise.all([
       getNews(c.env.DB, {
       minScore: Number.isNaN(minScore as number) ? undefined : minScore,
+      maxScore: Number.isNaN(maxScore as number) ? undefined : maxScore,
       tags,
       category,
       platform,
-      limit: Number.isNaN(limit) ? 30 : limit,
+      limit: Number.isNaN(limit) ? 10 : limit,
+      offset: Number.isNaN(offset) ? 0 : offset,
       since,
+      search,
       }),
       getSourceNameMap(c.env.DB),
     ]);
@@ -242,18 +251,29 @@ app.get('/api/daily-briefings/latest', async (c) => {
 
 /**
  * GET /api/stats/histogram - 获取分数分布直方图数据
- * 查询参数：?days=30 (可选，默认30天)
+ * 查询参数：days, platform, category, tags, search (除分数范围外的所有筛选条件)
  */
 app.get('/api/stats/histogram', async (c) => {
   try {
     const daysParam = c.req.query('days');
+    const platformParam = c.req.query('platform');
+    const categoryParam = c.req.query('category');
+    const tagsParam = c.req.query('tags');
+    const searchParam = c.req.query('search');
+
     const days = daysParam ? parseInt(daysParam, 10) : 30;
+    const platform = platformParam as 'News' | 'Twitter' | 'Telegram' | undefined;
+    const category = categoryParam as 'Labor' | 'Politics' | 'Conflict' | 'Theory' | undefined;
+    const tags = tagsParam ? tagsParam.split(',').map(t => t.trim()).filter(t => t) : undefined;
+    const search = searchParam?.trim() || undefined;
 
-    if (isNaN(days) || days < 1 || days > 365) {
-      return c.json({ error: 'Invalid days parameter', success: false }, 400);
-    }
-
-    const histogram = await getScoreHistogram(c.env.DB, days);
+    const histogram = await getScoreHistogram(c.env.DB, {
+      days,
+      platform,
+      category,
+      tags,
+      search,
+    });
     return c.json({ histogram, days });
   } catch (error) {
     console.error('[/api/stats/histogram] 处理请求时出错:', error);
