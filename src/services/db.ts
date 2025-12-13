@@ -218,7 +218,20 @@ export async function getNews(
     .orderBy(desc(articles.score), desc(articles.publishedAt), desc(articles.createdAt))
     .limit(options.limit ?? 30);
 
-  return await query.all();
+  console.log('[getNews] 查询条件数量:', conditions.length);
+  console.log('[getNews] 查询参数:', { 
+    minScore: options.minScore, 
+    tags: options.tags, 
+    category: options.category, 
+    platform: options.platform, 
+    since: options.since,
+    limit: options.limit 
+  });
+  
+  const result = await query.all();
+  console.log('[getNews] 查询结果数量:', result.length);
+  
+  return result;
 }
 
 /**

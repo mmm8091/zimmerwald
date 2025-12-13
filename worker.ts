@@ -67,6 +67,8 @@ app.get('/api/news', async (c) => {
     const minScore = minScoreParam ? parseInt(minScoreParam, 10) : undefined;
     // 支持多标签：优先使用 tags 参数，否则使用 tag 参数（兼容旧版本）
     const tags = tagsParam ? tagsParam.split(',').map(t => t.trim()).filter(t => t) : (tagParam ? [tagParam.trim()] : undefined);
+    console.log('[/api/news] 原始 tagsParam:', tagsParam);
+    console.log('[/api/news] 解析后的 tags 数组:', tags);
     const category = categoryParam as 'Labor' | 'Politics' | 'Conflict' | 'Theory' | undefined;
     const platform = platformParam as 'News' | 'Twitter' | 'Telegram' | undefined;
     const limit = limitParam ? parseInt(limitParam, 10) : 30;

@@ -27,10 +27,14 @@ export async function getArticles(params: Record<string, any> = {}) {
   if (params.platform) searchParams.set('platform', params.platform);
   if (params.category) searchParams.set('category', params.category);
   if (params.tag) searchParams.set('tag', params.tag); // 兼容旧版本
-  if (params.tags) searchParams.set('tags', params.tags); // 新版本：多个标签用逗号分隔
+  if (params.tags) {
+    console.log('[getArticles] 传递 tags 参数:', params.tags);
+    searchParams.set('tags', params.tags); // 新版本：多个标签用逗号分隔
+  }
   if (params.limit) searchParams.set('limit', String(params.limit));
   if (params.days !== undefined) searchParams.set('days', String(params.days)); // 包括 0（全部）
   const query = searchParams.toString();
+  console.log('[getArticles] 最终 URL:', '/api/news' + (query ? '?' + query : ''));
   return apiRequest('/api/news' + (query ? '?' + query : ''));
 }
 
