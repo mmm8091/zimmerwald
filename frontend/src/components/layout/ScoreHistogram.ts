@@ -8,9 +8,13 @@ export const ScoreHistogram = {
   setup() {
     // 直方图参数：包含所有筛选条件，但排除分数范围
     const histogramParams = computed(() => {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/c7c0288b-5f18-4399-aeaf-b757cde2bb7c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ScoreHistogram.ts:10',message:'histogramParams computed executing',data:{platform:filterStore.selectedPlatform,category:filterStore.selectedCategory,tags:filterStore.selectedTags,search:filterStore.searchKeyword,days:filterStore.days},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H3'})}).catch(()=>{});
-      // #endregion
+      console.log('[ScoreHistogram] histogramParams computed 执行，当前筛选条件:', {
+        platform: filterStore.selectedPlatform,
+        category: filterStore.selectedCategory,
+        tags: filterStore.selectedTags,
+        search: filterStore.searchKeyword,
+        days: filterStore.days,
+      });
       // 确保 computed 响应所有筛选条件的变化 - 直接访问 filterStore 属性
       const params: Record<string, any> = {
         days: filterStore.days,
@@ -19,17 +23,7 @@ export const ScoreHistogram = {
       if (filterStore.selectedCategory) params.category = filterStore.selectedCategory;
       if (filterStore.selectedTags.length > 0) params.tags = filterStore.selectedTags.join(',');
       if (filterStore.searchKeyword.trim()) params.search = filterStore.searchKeyword.trim();
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/c7c0288b-5f18-4399-aeaf-b757cde2bb7c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ScoreHistogram.ts:22',message:'histogramParams computed returning',data:params,timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H3'})}).catch(()=>{});
-      // #endregion
-      console.log('[ScoreHistogram] histogramParams computed - 筛选条件:', {
-        platform: filterStore.selectedPlatform,
-        category: filterStore.selectedCategory,
-        tags: filterStore.selectedTags,
-        search: filterStore.searchKeyword,
-        days: filterStore.days,
-      });
-      console.log('[ScoreHistogram] histogramParams:', JSON.stringify(params, null, 2));
+      console.log('[ScoreHistogram] histogramParams computed 返回值:', JSON.stringify(params));
       return params;
     });
 

@@ -34,31 +34,29 @@ export function useQuery({ queryKey, queryFn }: {
   // 如果 queryKey 是 computed，监听它的变化
   if (queryKey && typeof queryKey === 'object' && 'value' in queryKey) {
     // queryKey 是 computed ref
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/c7c0288b-5f18-4399-aeaf-b757cde2bb7c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useQuery.ts:35',message:'Setting up watch for computed queryKey',data:{queryKeyType:'computed',queryKeyValue:queryKey.value},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{});
-    // #endregion
+    console.log('[useQuery] 设置 computed queryKey watch, 初始值:', JSON.stringify(queryKey.value));
     watch(queryKey, (newVal, oldVal) => {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/c7c0288b-5f18-4399-aeaf-b757cde2bb7c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useQuery.ts:38',message:'queryKey changed, triggering refetch',data:{newVal,oldVal},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{});
-      // #endregion
+      console.log('[useQuery] queryKey 改变，触发 refetch', {
+        oldVal: JSON.stringify(oldVal),
+        newVal: JSON.stringify(newVal),
+        oldValStr: oldVal ? JSON.stringify(oldVal) : 'null',
+        newValStr: newVal ? JSON.stringify(newVal) : 'null',
+      });
       refetch();
-    }, { immediate: true });
+    }, { immediate: true, deep: true });
   } else if (queryKey !== undefined) {
     // queryKey 是普通值，监听它的变化
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/c7c0288b-5f18-4399-aeaf-b757cde2bb7c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useQuery.ts:42',message:'Setting up watch for plain queryKey',data:{queryKeyType:'plain',queryKey},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{});
-    // #endregion
+    console.log('[useQuery] 设置普通 queryKey watch, 初始值:', JSON.stringify(queryKey));
     watch(() => queryKey, (newVal, oldVal) => {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/c7c0288b-5f18-4399-aeaf-b757cde2bb7c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useQuery.ts:44',message:'queryKey changed, triggering refetch',data:{newVal,oldVal},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{});
-      // #endregion
+      console.log('[useQuery] queryKey 改变，触发 refetch', {
+        oldVal: JSON.stringify(oldVal),
+        newVal: JSON.stringify(newVal),
+      });
       refetch();
     }, { immediate: true, deep: true });
   } else {
     // 没有 queryKey，立即执行一次
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/c7c0288b-5f18-4399-aeaf-b757cde2bb7c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useQuery.ts:47',message:'No queryKey, executing immediately',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{});
-    // #endregion
+    console.log('[useQuery] 没有 queryKey，立即执行');
     refetch();
   }
 

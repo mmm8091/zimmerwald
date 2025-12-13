@@ -10,9 +10,8 @@ export const filterStore = reactive({
   searchKeyword: '', // 搜索关键词
   page: 1, // 当前页码，从 1 开始
   get queryParams() {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/c7c0288b-5f18-4399-aeaf-b757cde2bb7c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'filterStore.ts:12',message:'queryParams getter called',data:{page:this.page,offset:(this.page-1)*10},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion
+    const offset = (this.page - 1) * 10;
+    console.log('[filterStore] queryParams getter 被调用:', { page: this.page, offset, stack: new Error().stack?.split('\n').slice(1, 4).join('\n') });
     const params = {
       min_score: this.scoreRange[0],
       max_score: this.scoreRange[1],
@@ -22,11 +21,9 @@ export const filterStore = reactive({
       days: this.days, // 始终传递 days，0 表示全部
       search: this.searchKeyword.trim() || undefined, // 搜索关键词
       limit: 10, // 每页 10 篇
-      offset: (this.page - 1) * 10, // 分页偏移量
+      offset: offset, // 分页偏移量
     };
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/c7c0288b-5f18-4399-aeaf-b757cde2bb7c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'filterStore.ts:24',message:'queryParams getter returning',data:params,timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion
+    console.log('[filterStore] queryParams 返回值:', JSON.stringify(params));
     return params;
   },
   setScoreRange(range: number[]) {
@@ -66,13 +63,10 @@ export const filterStore = reactive({
     this.resetPage();
   },
   nextPage() {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/c7c0288b-5f18-4399-aeaf-b757cde2bb7c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'filterStore.ts:61',message:'nextPage called',data:{pageBefore:this.page},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion
+    console.log('[filterStore] nextPage 调用前:', { page: this.page, offset: (this.page - 1) * 10 });
     this.page++;
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/c7c0288b-5f18-4399-aeaf-b757cde2bb7c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'filterStore.ts:63',message:'nextPage after increment',data:{pageAfter:this.page,queryParams:this.queryParams},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion
+    const newOffset = (this.page - 1) * 10;
+    console.log('[filterStore] nextPage 调用后:', { page: this.page, offset: newOffset, queryParams: this.queryParams });
   },
   resetPage() {
     this.page = 1;

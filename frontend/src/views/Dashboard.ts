@@ -14,9 +14,13 @@ export const Dashboard = {
   setup() {
     // 用于标签云的文章数据：包含所有筛选条件（包括已选标签），但排除分数范围
     const tagCloudParams = computed(() => {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/c7c0288b-5f18-4399-aeaf-b757cde2bb7c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Dashboard.ts:16',message:'tagCloudParams computed executing',data:{platform:filterStore.selectedPlatform,category:filterStore.selectedCategory,tags:filterStore.selectedTags,search:filterStore.searchKeyword,days:filterStore.days},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H3'})}).catch(()=>{});
-      // #endregion
+      console.log('[Dashboard] tagCloudParams computed 执行，当前筛选条件:', {
+        platform: filterStore.selectedPlatform,
+        category: filterStore.selectedCategory,
+        tags: filterStore.selectedTags,
+        search: filterStore.searchKeyword,
+        days: filterStore.days,
+      });
       // 确保 computed 响应所有筛选条件的变化 - 直接访问 filterStore 属性
       const params: Record<string, any> = {
         days: filterStore.days,
@@ -27,24 +31,21 @@ export const Dashboard = {
       if (filterStore.selectedTags.length > 0) params.tags = filterStore.selectedTags.join(',');
       if (filterStore.searchKeyword.trim()) params.search = filterStore.searchKeyword.trim();
       // 注意：不包含 min_score 和 max_score，标签云不受分数范围影响
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/c7c0288b-5f18-4399-aeaf-b757cde2bb7c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Dashboard.ts:32',message:'tagCloudParams computed returning',data:params,timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H3'})}).catch(()=>{});
-      // #endregion
-      console.log('[Dashboard] tagCloudParams computed - 筛选条件:', {
-        platform: filterStore.selectedPlatform,
-        category: filterStore.selectedCategory,
-        tags: filterStore.selectedTags,
-        search: filterStore.searchKeyword,
-        days: filterStore.days,
-      });
-      console.log('[Dashboard] tagCloudParams:', JSON.stringify(params, null, 2));
+      console.log('[Dashboard] tagCloudParams computed 返回值:', JSON.stringify(params));
       return params;
     });
 
+    const queryKeyComputed = computed(() => {
+      const params = filterStore.queryParams;
+      const key = ['articles', params];
+      console.log('[Dashboard] queryKey computed 执行:', { params, key: JSON.stringify(key) });
+      return key;
+    });
+
     const { data: articlesData, isLoading, isError, refetch } = useQuery({
-      queryKey: computed(() => ['articles', filterStore.queryParams]),
+      queryKey: queryKeyComputed,
       queryFn: () => {
-        console.log('[Dashboard] 查询文章，参数:', filterStore.queryParams);
+        console.log('[Dashboard] queryFn 执行，参数:', filterStore.queryParams);
         return getArticles(filterStore.queryParams);
       },
     });
@@ -115,13 +116,18 @@ export const Dashboard = {
 
     // 加载更多
     const loadMore = () => {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/c7c0288b-5f18-4399-aeaf-b757cde2bb7c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Dashboard.ts:104',message:'loadMore called',data:{pageBefore:filterStore.page,queryParamsBefore:filterStore.queryParams},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{});
-      // #endregion
+      console.log('[Dashboard] loadMore 调用前:', {
+        page: filterStore.page,
+        offset: filterStore.queryParams.offset,
+        queryParams: filterStore.queryParams,
+      });
       filterStore.nextPage();
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/c7c0288b-5f18-4399-aeaf-b757cde2bb7c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Dashboard.ts:107',message:'loadMore after nextPage',data:{pageAfter:filterStore.page,queryParamsAfter:filterStore.queryParams},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{});
-      // #endregion
+      console.log('[Dashboard] loadMore 调用后:', {
+        page: filterStore.page,
+        offset: filterStore.queryParams.offset,
+        queryParams: filterStore.queryParams,
+        queryKey: computed(() => ['articles', filterStore.queryParams]).value,
+      });
     };
     
     // 用于标签云的数据（基于当前筛选，但不包括标签筛选）
