@@ -45,10 +45,16 @@ export const Dashboard = {
     // 累积的文章列表（用于分页）
     const accumulatedArticles = ref<any[]>([]);
 
-    // 跟踪当前的查询 key，用于检测筛选条件是否改变
-    const currentQueryKey = ref<string>('');
+    // 跟踪当前的筛选条件 key（不包括 page/offset），用于检测筛选条件是否改变
+    const currentFilterKey = ref<string>('');
 
-    // 当筛选条件改变时，重置累积列表
+    // 构建筛选条件 key（不包括 page/offset）
+    const getFilterKey = () => {
+      const { offset, limit, ...filterParams } = filterStore.queryParams;
+      return JSON.stringify(filterParams);
+    };
+
+    // 当筛选条件改变时（不包括 page），重置累积列表
     watch(() => [
       filterStore.days,
       filterStore.selectedPlatform,
@@ -60,7 +66,7 @@ export const Dashboard = {
     ], () => {
       accumulatedArticles.value = [];
       filterStore.resetPage();
-      currentQueryKey.value = JSON.stringify(filterStore.queryParams);
+      currentFilterKey.value = getFilterKey();
     }, { deep: true, immediate: true });
 
     // 当新数据到达时，累积文章（如果是第一页则替换，否则追加）
@@ -69,12 +75,12 @@ export const Dashboard = {
         return;
       }
       const newDataArray = newData as any[];
-      const queryKey = JSON.stringify(filterStore.queryParams);
+      const filterKey = getFilterKey();
       const currentPage = filterStore.page;
       
-      // 如果查询 key 改变了，说明筛选条件改变了，应该替换
-      if (queryKey !== currentQueryKey.value) {
-        currentQueryKey.value = queryKey;
+      // 如果筛选条件改变了（不包括 page），应该替换
+      if (filterKey !== currentFilterKey.value) {
+        currentFilterKey.value = filterKey;
         accumulatedArticles.value = [...newDataArray];
         return;
       }

@@ -1,7 +1,7 @@
 // 简单查询 Hook（替代 Vue Query）
-import { ref } from 'vue';
+import { ref, watch, computed } from 'vue';
 
-export function useQuery({ queryFn }: {
+export function useQuery({ queryKey, queryFn }: {
   queryKey?: any;
   queryFn: () => Promise<any>;
   staleTime?: number;
@@ -31,8 +31,21 @@ export function useQuery({ queryFn }: {
     }
   }
 
-  // 立即执行，不等待 mounted
-  refetch();
+  // 如果 queryKey 是 computed，监听它的变化
+  if (queryKey && typeof queryKey === 'object' && 'value' in queryKey) {
+    // queryKey 是 computed ref
+    watch(queryKey, () => {
+      refetch();
+    }, { immediate: true });
+  } else if (queryKey !== undefined) {
+    // queryKey 是普通值，监听它的变化
+    watch(() => queryKey, () => {
+      refetch();
+    }, { immediate: true, deep: true });
+  } else {
+    // 没有 queryKey，立即执行一次
+    refetch();
+  }
 
   return { data, isLoading, isError, error, refetch };
 }
