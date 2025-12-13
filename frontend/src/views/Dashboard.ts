@@ -14,7 +14,7 @@ export const Dashboard = {
   setup() {
     // 用于标签云的文章数据（不包括标签筛选，且不受 limit 限制）
     const tagCloudParams = computed(() => {
-      const params = { ...filterStore.queryParams };
+      const params: Record<string, any> = { ...filterStore.queryParams };
       delete params.tags; // 标签云不包含标签筛选
       delete params.limit; // 标签云需要所有满足条件的文章，不受 limit 限制
       // 设置一个很大的 limit 值，确保获取所有文章用于标签云统计
