@@ -40,20 +40,29 @@ export const ScoreHistogram = {
     };
     
     return () => h('div', { class: 'space-y-4' }, [
-      h('div', { class: 'flex items-end gap-1 h-32' }, histogram.value.map((bucket: any, idx: number) =>
-        h('div', {
+      h('div', { class: 'flex items-end gap-1 h-32 relative' }, histogram.value.map((bucket: any, idx: number) => {
+        const bucketLabel = bucket.bucket === 0 
+          ? `0-9分: ${bucket.count}篇文章`
+          : `${bucket.bucket}-${bucket.bucket + 9}分: ${bucket.count}篇文章`;
+        return h('div', {
           key: idx,
           class: [
-            'flex-1 rounded-t transition-all',
+            'flex-1 rounded-t transition-all cursor-pointer group',
             // 背景直方图：所有柱状图都显示（完整分布）
             isInRange(bucket.bucket) 
-              ? 'bg-zinc-500' // 当前分数范围内的柱状图高亮
-              : 'bg-zinc-700', // 其他柱状图作为背景
+              ? 'bg-zinc-500 hover:bg-zinc-400' // 当前分数范围内的柱状图高亮
+              : 'bg-zinc-700 hover:bg-zinc-600', // 其他柱状图作为背景
           ],
           style: { height: `${getHeight(bucket.count)}%` },
-          title: `${bucket.bucket}-${bucket.bucket + 9}: ${bucket.count}`,
-        })
-      )),
+          title: bucketLabel,
+        }, [
+          // 悬停提示框
+          h('div', {
+            class: 'absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-zinc-900 text-zinc-100 text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-10 border border-zinc-700',
+            style: { display: bucket.count > 0 ? 'block' : 'none' },
+          }, bucketLabel),
+        ]);
+      })),
       h('div', { class: 'space-y-2' }, [
         h('input', {
           type: 'range',

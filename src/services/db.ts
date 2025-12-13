@@ -209,7 +209,8 @@ export async function getNews(
 
   // 搜索功能：在标题、摘要、标签、信源名称中搜索
   if (options.search && options.search.trim()) {
-    const searchTerm = `%${options.search.trim()}%`;
+    const searchKeyword = options.search.trim();
+    const searchTerm = `%${searchKeyword}%`;
     // 使用 OR 连接多个字段的搜索条件
     const searchConditions = [
       like(articles.titleEn, searchTerm),
@@ -230,7 +231,7 @@ export async function getNews(
       )`,
     ];
     conditions.push(or(...searchConditions));
-    console.log('[getNews] 添加搜索条件:', options.search);
+    console.log('[getNews] 添加搜索条件:', searchKeyword, '搜索词:', searchTerm);
   }
 
   let query = d
