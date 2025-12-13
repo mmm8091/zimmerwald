@@ -79,10 +79,11 @@ export const Dashboard = {
 
     // 当新数据到达时，累积文章（如果是第一页则替换，否则追加）
     watch(() => articlesData.value, (newData) => {
+      const dataLength = (newData && Array.isArray(newData)) ? newData.length : 0;
       console.log('[Dashboard] articlesData watch 触发:', {
         hasData: !!newData,
         isArray: Array.isArray(newData),
-        dataLength: Array.isArray(newData) ? newData.length : 0,
+        dataLength: dataLength,
         currentPage: filterStore.page,
         currentFilterKey: currentFilterKey.value,
         accumulatedCount: accumulatedArticles.value.length,
