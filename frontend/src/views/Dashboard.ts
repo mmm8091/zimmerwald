@@ -79,29 +79,61 @@ export const Dashboard = {
 
     // 当新数据到达时，累积文章（如果是第一页则替换，否则追加）
     watch(() => articlesData.value, (newData) => {
+      console.log('[Dashboard] articlesData watch 触发:', {
+        hasData: !!newData,
+        isArray: Array.isArray(newData),
+        dataLength: Array.isArray(newData) ? newData.length : 0,
+        currentPage: filterStore.page,
+        currentFilterKey: currentFilterKey.value,
+        accumulatedCount: accumulatedArticles.value.length,
+      });
+      
       if (!newData || !Array.isArray(newData)) {
+        console.log('[Dashboard] articlesData 无效，跳过');
         return;
       }
       const newDataArray = newData as any[];
       const filterKey = getFilterKey();
       const currentPage = filterStore.page;
       
+      console.log('[Dashboard] 处理新数据:', {
+        newDataLength: newDataArray.length,
+        filterKey,
+        currentFilterKey: currentFilterKey.value,
+        filterKeyMatch: filterKey === currentFilterKey.value,
+        currentPage,
+      });
+      
       // 如果筛选条件改变了（不包括 page），应该替换
       if (filterKey !== currentFilterKey.value) {
+        console.log('[Dashboard] 筛选条件改变，替换累积列表');
         currentFilterKey.value = filterKey;
         accumulatedArticles.value = [...newDataArray];
+        console.log('[Dashboard] 替换后累积列表长度:', accumulatedArticles.value.length);
         return;
       }
       
       // 如果是第一页，替换累积列表
       if (currentPage === 1) {
+        console.log('[Dashboard] 第一页，替换累积列表');
         accumulatedArticles.value = [...newDataArray];
+        console.log('[Dashboard] 替换后累积列表长度:', accumulatedArticles.value.length);
       } else {
         // 如果是后续页面，追加到累积列表（避免重复）
+        console.log('[Dashboard] 后续页面，追加到累积列表');
         const existingIds = new Set(accumulatedArticles.value.map((a: any) => a.id));
         const newArticles = newDataArray.filter((a: any) => !existingIds.has(a.id));
+        console.log('[Dashboard] 追加前:', {
+          existingCount: accumulatedArticles.value.length,
+          newDataCount: newDataArray.length,
+          newArticlesCount: newArticles.length,
+          existingIds: Array.from(existingIds).slice(0, 5),
+        });
         if (newArticles.length > 0) {
           accumulatedArticles.value = [...accumulatedArticles.value, ...newArticles];
+          console.log('[Dashboard] 追加后累积列表长度:', accumulatedArticles.value.length);
+        } else {
+          console.log('[Dashboard] 没有新文章可追加（可能重复）');
         }
       }
     }, { immediate: true });
