@@ -8,20 +8,21 @@ export const ScoreHistogram = {
   setup() {
     // 直方图参数：包含所有筛选条件，但排除分数范围
     const histogramParams = computed(() => {
-      // 确保 computed 响应所有筛选条件的变化
-      const platform = filterStore.selectedPlatform;
-      const category = filterStore.selectedCategory;
-      const tags = filterStore.selectedTags;
-      const search = filterStore.searchKeyword;
-      const days = filterStore.days;
-      
+      // 确保 computed 响应所有筛选条件的变化 - 直接访问 filterStore 属性
       const params: Record<string, any> = {
-        days: days,
+        days: filterStore.days,
       };
-      if (platform) params.platform = platform;
-      if (category) params.category = category;
-      if (tags.length > 0) params.tags = tags.join(',');
-      if (search.trim()) params.search = search.trim();
+      if (filterStore.selectedPlatform) params.platform = filterStore.selectedPlatform;
+      if (filterStore.selectedCategory) params.category = filterStore.selectedCategory;
+      if (filterStore.selectedTags.length > 0) params.tags = filterStore.selectedTags.join(',');
+      if (filterStore.searchKeyword.trim()) params.search = filterStore.searchKeyword.trim();
+      console.log('[ScoreHistogram] histogramParams computed - 筛选条件:', {
+        platform: filterStore.selectedPlatform,
+        category: filterStore.selectedCategory,
+        tags: filterStore.selectedTags,
+        search: filterStore.searchKeyword,
+        days: filterStore.days,
+      });
       console.log('[ScoreHistogram] histogramParams:', JSON.stringify(params, null, 2));
       return params;
     });

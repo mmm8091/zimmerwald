@@ -14,22 +14,23 @@ export const Dashboard = {
   setup() {
     // 用于标签云的文章数据：包含所有筛选条件（包括已选标签），但排除分数范围
     const tagCloudParams = computed(() => {
-      // 确保 computed 响应所有筛选条件的变化
-      const platform = filterStore.selectedPlatform;
-      const category = filterStore.selectedCategory;
-      const tags = filterStore.selectedTags;
-      const search = filterStore.searchKeyword;
-      const days = filterStore.days;
-      
+      // 确保 computed 响应所有筛选条件的变化 - 直接访问 filterStore 属性
       const params: Record<string, any> = {
-        days: days,
+        days: filterStore.days,
         limit: 10000, // 标签云需要所有满足条件的文章
       };
-      if (platform) params.platform = platform;
-      if (category) params.category = category;
-      if (tags.length > 0) params.tags = tags.join(',');
-      if (search.trim()) params.search = search.trim();
+      if (filterStore.selectedPlatform) params.platform = filterStore.selectedPlatform;
+      if (filterStore.selectedCategory) params.category = filterStore.selectedCategory;
+      if (filterStore.selectedTags.length > 0) params.tags = filterStore.selectedTags.join(',');
+      if (filterStore.searchKeyword.trim()) params.search = filterStore.searchKeyword.trim();
       // 注意：不包含 min_score 和 max_score，标签云不受分数范围影响
+      console.log('[Dashboard] tagCloudParams computed - 筛选条件:', {
+        platform: filterStore.selectedPlatform,
+        category: filterStore.selectedCategory,
+        tags: filterStore.selectedTags,
+        search: filterStore.searchKeyword,
+        days: filterStore.days,
+      });
       console.log('[Dashboard] tagCloudParams:', JSON.stringify(params, null, 2));
       return params;
     });
