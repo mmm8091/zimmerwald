@@ -38,6 +38,9 @@ export const Dashboard = {
     // 累积的文章列表（用于分页）
     const accumulatedArticles = ref<any[]>([]);
 
+    // 跟踪当前的查询 key，用于检测筛选条件是否改变
+    const currentQueryKey = ref<string>('');
+
     // 当筛选条件改变时，重置累积列表
     watch(() => [
       filterStore.days,
@@ -50,18 +53,35 @@ export const Dashboard = {
     ], () => {
       accumulatedArticles.value = [];
       filterStore.resetPage();
-    }, { deep: true });
+      currentQueryKey.value = JSON.stringify(filterStore.queryParams);
+    }, { deep: true, immediate: true });
 
     // 当新数据到达时，累积文章（如果是第一页则替换，否则追加）
     watch(() => articlesData.value, (newData) => {
       if (!newData || !Array.isArray(newData)) {
-        accumulatedArticles.value = [];
         return;
       }
-      if (filterStore.page === 1) {
-        accumulatedArticles.value = [...(newData as any[])];
+      const newDataArray = newData as any[];
+      const queryKey = JSON.stringify(filterStore.queryParams);
+      const currentPage = filterStore.page;
+      
+      // 如果查询 key 改变了，说明筛选条件改变了，应该替换
+      if (queryKey !== currentQueryKey.value) {
+        currentQueryKey.value = queryKey;
+        accumulatedArticles.value = [...newDataArray];
+        return;
+      }
+      
+      // 如果是第一页，替换累积列表
+      if (currentPage === 1) {
+        accumulatedArticles.value = [...newDataArray];
       } else {
-        accumulatedArticles.value = [...accumulatedArticles.value, ...(newData as any[])];
+        // 如果是后续页面，追加到累积列表（避免重复）
+        const existingIds = new Set(accumulatedArticles.value.map((a: any) => a.id));
+        const newArticles = newDataArray.filter((a: any) => !existingIds.has(a.id));
+        if (newArticles.length > 0) {
+          accumulatedArticles.value = [...accumulatedArticles.value, ...newArticles];
+        }
       }
     }, { immediate: true });
 
