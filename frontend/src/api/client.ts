@@ -21,6 +21,9 @@ export async function apiRequest(endpoint: string, options: RequestInit = {}) {
 }
 
 export async function getArticles(params: Record<string, any> = {}) {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/c7c0288b-5f18-4399-aeaf-b757cde2bb7c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'client.ts:23',message:'getArticles called',data:params,timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H4'})}).catch(()=>{});
+  // #endregion
   const searchParams = new URLSearchParams();
   if (params.min_score !== undefined) searchParams.set('min_score', String(params.min_score));
   if (params.max_score !== undefined) searchParams.set('max_score', String(params.max_score));
@@ -39,8 +42,12 @@ export async function getArticles(params: Record<string, any> = {}) {
   if (params.offset !== undefined) searchParams.set('offset', String(params.offset));
   if (params.days !== undefined) searchParams.set('days', String(params.days)); // 包括 0（全部）
   const query = searchParams.toString();
-  console.log('[getArticles] 最终 URL:', '/api/news' + (query ? '?' + query : ''), '完整参数:', Object.keys(params).map(k => `${k}=${params[k]}`).join(', '));
-  return apiRequest('/api/news' + (query ? '?' + query : ''));
+  const finalUrl = '/api/news' + (query ? '?' + query : '');
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/c7c0288b-5f18-4399-aeaf-b757cde2bb7c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'client.ts:38',message:'getArticles final URL',data:{url:finalUrl,searchParams:Object.fromEntries(searchParams)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H4'})}).catch(()=>{});
+  // #endregion
+  console.log('[getArticles] 最终 URL:', finalUrl, '完整参数:', Object.keys(params).map(k => `${k}=${params[k]}`).join(', '));
+  return apiRequest(finalUrl);
 }
 
 export async function getSourcesStats(includeDisabled = false) {

@@ -117,6 +117,9 @@ export async function getNews(
   // 支持多标签筛选（OR 逻辑）
   // 使用 SQLite JSON 函数进行精确匹配
   if (options.tags && options.tags.length > 0) {
+    // #region agent log
+    console.log(JSON.stringify({location:'db.ts:119',message:'Processing tags filter',data:{tags:options.tags,tagsLength:options.tags.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H5'}));
+    // #endregion
     console.log('[getNews] 开始处理标签筛选，标签列表:', options.tags);
     // 使用 OR 逻辑：文章包含任意一个标签即可
     const tagConditions: any[] = [];
@@ -209,6 +212,9 @@ export async function getNews(
 
   // 搜索功能：在标题、摘要、标签、信源名称中搜索
   if (options.search && options.search.trim()) {
+    // #region agent log
+    console.log(JSON.stringify({location:'db.ts:211',message:'Processing search condition',data:{search:options.search},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H5'}));
+    // #endregion
     const searchKeyword = options.search.trim();
     const searchTerm = `%${searchKeyword}%`;
     // 使用 OR 连接多个字段的搜索条件
@@ -231,6 +237,9 @@ export async function getNews(
       )`,
     ];
     conditions.push(or(...searchConditions));
+    // #region agent log
+    console.log(JSON.stringify({location:'db.ts:233',message:'Search condition added',data:{searchKeyword,searchTerm,conditionsCount:conditions.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H5'}));
+    // #endregion
     console.log('[getNews] 添加搜索条件:', searchKeyword, '搜索词:', searchTerm);
   }
 

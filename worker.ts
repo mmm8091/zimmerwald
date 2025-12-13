@@ -79,6 +79,9 @@ app.get('/api/news', async (c) => {
     const offset = offsetParam ? parseInt(offsetParam, 10) : 0;
     const days = daysParam ? parseInt(daysParam, 10) : 30;
     const search = searchParam?.trim() || undefined;
+    // #region agent log
+    console.log(JSON.stringify({location:'worker.ts:81',message:'/api/news params parsed',data:{minScore,maxScore,tags,category,platform,limit,offset,days,search},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H5'}));
+    // #endregion
     // days 为 0 表示全部，不限制时间
     const since = (Number.isNaN(days) || days === 0) ? undefined : Date.now() - days * 24 * 60 * 60 * 1000;
 
